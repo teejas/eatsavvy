@@ -1,0 +1,1 @@
+alter table if exists public.restaurants add constraint unique_places_id unique (places_id);

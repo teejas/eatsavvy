@@ -5,8 +5,10 @@ type Places struct {
 }
 
 type Place struct {
+	Id                  string       `json:"id"`
 	PrimaryType         string       `json:"primaryType"`
 	DisplayName         DisplayName  `json:"displayName"`
+	Address             string       `json:"formattedAddress"`
 	NationalPhoneNumber string       `json:"nationalPhoneNumber"`
 	CurrentOpeningHours OpeningHours `json:"currentOpeningHours"`
 	RegularOpeningHours OpeningHours `json:"regularOpeningHours"`

@@ -1,30 +1,53 @@
 package api
 
 import (
+	"eatsavvy/pkg/db"
 	"eatsavvy/pkg/places"
-	"net/http"
+	"log/slog"
+	netHttp "net/http"
 
 	"github.com/gin-gonic/gin"
 )
 
-func Run() (*gin.Engine, error) {
+func StartServer(port string) {
 	r := gin.Default()
-	r.POST("/restaurants/search", func(c *gin.Context) {
+	restaurantClient := places.NewRestaurantClient()
+	dbClient := db.NewDatabaseClient()
+	defer dbClient.Close()
+	if dbClient == nil {
+		slog.Error("[api.StartServer] Failed to create database client")
+		return
+	}
+	r.POST("/search", func(c *gin.Context) {
 		var request struct {
 			Query string `json:"query"`
 		}
 		if err := c.ShouldBindJSON(&request); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			c.JSON(netHttp.StatusBadRequest, gin.H{"error": err.Error()})
 			return
 		}
-		restaurants, err := places.GetRestaurantDetails(request.Query)
+		restaurants, err := restaurantClient.GetRestaurants(request.Query) // Magnin Cafe
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			c.JSON(netHttp.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
 		}
-		c.JSON(http.StatusOK, restaurants)
+		c.JSON(netHttp.StatusOK, restaurants)
 	})
-	r.Run(":8080")
+	r.POST("/enrich", func(c *gin.Context) {
+		var request struct {
+			Id string `json:"id"`
+		}
+		if err := c.ShouldBindJSON(&request); err != nil {
+			c.JSON(netHttp.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+		err := restaurantClient.EnrichRestaurantDetails(request.Id)
+		if err != nil {
+			c.JSON(netHttp.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+		c.JSON(netHttp.StatusOK, nil)
+	})
 
-	return r, nil
+	r.Run(":" + port)
 }
