@@ -1,6 +1,6 @@
 # eatsavvy
 
-uses Google Places API, RabbitMQ, and Vapi to enrich restaurant details with nutritional and dietary information.
+uses Google Places API and Vapi to enrich restaurant details with nutritional and dietary information.
 
 ## api
 
