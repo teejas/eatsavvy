@@ -53,8 +53,6 @@ func (pc *PlacesClient) GetPlaceDetails(placeId string, fields []string) (Place,
 		return Place{}, err
 	}
 
-	slog.Info("[places.GetPlaceDetails] Response body", "responseBody", string(respBody))
-
 	var place Place
 	err = json.Unmarshal(respBody, &place)
 	if err != nil {

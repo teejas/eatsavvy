@@ -16,7 +16,7 @@ func getGooglePlacesFieldMask(fields []string, needsPlacesPrefix bool) string {
 func filterRestaurants(places []Place) []Place {
 	restaurants := []Place{}
 	for _, place := range places {
-		if place.PrimaryType == "restaurant" {
+		if strings.Contains(place.PrimaryType, "restaurant") {
 			restaurants = append(restaurants, place)
 		}
 	}
