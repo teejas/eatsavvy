@@ -18,45 +18,45 @@ func NewClient() *Http {
 	}
 }
 
-func (h *Http) Get(url string, headers map[string]string) ([]byte, error) {
+func (h *Http) Get(url string, headers map[string]string) ([]byte, int, error) {
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		slog.Error("[http.Get] Failed to create HTTP request", "error", err)
-		return nil, err
+		return nil, 0, err
 	}
 
-	body, err := sendRequest(h.client, req, headers)
+	body, statusCode, err := sendRequest(h.client, req, headers)
 	if err != nil {
 		slog.Error("[http.Get] Failed to send HTTP request", "error", err)
-		return nil, err
+		return nil, 0, err
 	}
 
-	return body, nil
+	return body, statusCode, nil
 }
 
-func (h *Http) Post(url string, reqBody map[string]string, headers map[string]string) ([]byte, error) {
+func (h *Http) Post(url string, reqBody interface{}, headers map[string]string) ([]byte, int, error) {
 	jsonReqBody, err := json.Marshal(reqBody)
 	if err != nil {
 		slog.Error("[http.Post] Failed to marshal request body", "error", err)
-		return nil, err
+		return nil, 0, err
 	}
 
 	req, err := http.NewRequest("POST", url, bytes.NewBuffer(jsonReqBody))
 	if err != nil {
 		slog.Error("[http.Post] Failed to create HTTP request", "error", err)
-		return nil, err
+		return nil, 0, err
 	}
 
-	body, err := sendRequest(h.client, req, headers)
+	body, statusCode, err := sendRequest(h.client, req, headers)
 	if err != nil {
 		slog.Error("[http.Post] Failed to send HTTP request", "error", err)
-		return nil, err
+		return nil, 0, err
 	}
 
-	return body, nil
+	return body, statusCode, nil
 }
 
-func sendRequest(httpClient *http.Client, req *http.Request, headers map[string]string) ([]byte, error) {
+func sendRequest(httpClient *http.Client, req *http.Request, headers map[string]string) ([]byte, int, error) {
 	for key, value := range headers {
 		req.Header.Set(key, value)
 	}
@@ -64,7 +64,7 @@ func sendRequest(httpClient *http.Client, req *http.Request, headers map[string]
 	resp, err := httpClient.Do(req)
 	if err != nil {
 		slog.Error("[http.sendRequest] Failed to send HTTP request", "error", err)
-		return nil, err
+		return nil, 0, err
 	}
 	defer resp.Body.Close()
 
@@ -73,8 +73,8 @@ func sendRequest(httpClient *http.Client, req *http.Request, headers map[string]
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		slog.Error("[http.sendRequest] Failed to read response body", "error", err)
-		return nil, err
+		return nil, 0, err
 	}
 
-	return body, nil
+	return body, resp.StatusCode, nil
 }

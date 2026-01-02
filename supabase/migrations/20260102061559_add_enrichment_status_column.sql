@@ -1,0 +1,1 @@
+alter table if exists public.restaurants add column if not exists enrichment_status text not null default 'pending';

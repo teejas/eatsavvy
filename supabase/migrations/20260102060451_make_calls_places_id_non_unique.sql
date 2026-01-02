@@ -1,0 +1,1 @@
+alter table if exists public.calls drop constraint if exists calls_places_id_key;

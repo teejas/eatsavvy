@@ -22,8 +22,8 @@ func (pc *PlacesClient) GetPlaces(textQuery string, fields []string) (Places, er
 		"X-Goog-FieldMask": getGooglePlacesFieldMask(fields, true),
 	}
 
-	respBody, err := pc.httpClient.Post("https://places.googleapis.com/v1/places:searchText", reqBody, headers)
-	if err != nil {
+	respBody, statusCode, err := pc.httpClient.Post("https://places.googleapis.com/v1/places:searchText", reqBody, headers)
+	if err != nil || statusCode >= 400 {
 		slog.Error("[places.GetPlaces] Failed to send HTTP request", "error", err)
 		return Places{}, err
 	}
@@ -47,9 +47,9 @@ func (pc *PlacesClient) GetPlaceDetails(placeId string, fields []string) (Place,
 		"X-Goog-FieldMask": getGooglePlacesFieldMask(fields, false),
 	}
 
-	respBody, err := pc.httpClient.Get("https://places.googleapis.com/v1/places/"+placeId, headers)
-	if err != nil {
-		slog.Error("[places.GetPlaceDetails] Failed to send HTTP request", "error", err)
+	respBody, statusCode, err := pc.httpClient.Get("https://places.googleapis.com/v1/places/"+placeId, headers)
+	if err != nil || statusCode >= 400 {
+		slog.Error("[places.GetPlaceDetails] Failed to send HTTP request", "error", err, "statusCode", statusCode, "responseBody", string(respBody))
 		return Place{}, err
 	}
 

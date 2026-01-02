@@ -1,0 +1,1 @@
+alter table if exists public.calls add column if not exists ended_reason text;
