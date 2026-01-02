@@ -3,6 +3,7 @@ package main
 import (
 	"eatsavvy/internal/api"
 	"eatsavvy/pkg/utils"
+
 	"log/slog"
 
 	"github.com/joho/godotenv"
