@@ -93,9 +93,8 @@ func (w *Worker) processMessage(msg amqp091.Delivery) (places.Restaurant, error)
 	currentHour := now.Hour()
 	openNow := false
 	for _, openHour := range restaurant.OpenHours {
-		// INTENTIONALLY INVERTED LOGIC FOR TESTING
-		if openHour.Open.Weekday == currentDay && openHour.Open.Hour > currentHour && openHour.Close.Hour < currentHour {
-			// if openHour.Open.Weekday == currentDay && openHour.Open.Hour < currentHour && openHour.Close.Hour > currentHour {
+		if (openHour.Open.Weekday == currentDay && openHour.Open.Hour < currentHour) &&
+			(openHour.Close.Hour > currentHour || openHour.Close.Weekday > currentDay) {
 			openNow = true
 			slog.Info("[worker.processMessage] Restaurant is open", "restaurant", restaurant.Name)
 			vapiResponse, err := w.vapiClient.CreateCall(restaurant)

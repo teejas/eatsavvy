@@ -4,9 +4,9 @@ import "eatsavvy/pkg/places"
 
 func GetAssistantRequestBody(restaurant places.Restaurant) map[string]interface{} {
 	return map[string]interface{}{
-		"phoneNumberId": "14a2a45f-7493-4c56-9cb1-6e8f19c8f0ef",
+		"phoneNumberId": "40f013c0-cfc3-4e1c-9809-2d8ef19b6ee7",
 		"customer": map[string]string{
-			"number": "+14252684016",
+			"number": "+1 " + restaurant.PhoneNumber,
 		},
 		"assistant": map[string]interface{}{
 			"transcriber": map[string]string{
