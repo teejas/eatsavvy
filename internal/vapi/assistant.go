@@ -16,7 +16,7 @@ func GetAssistantRequestBody(restaurant places.Restaurant) map[string]interface{
 			},
 			"voice": map[string]interface{}{
 				"provider": "11labs",
-				"voiceId":  "sarah",
+				"voiceId":  "tM3gaSIKXGpZNjRdfqTS", // Scott from Boston
 				"model":    "eleven_turbo_v2_5",
 				"speed":    1.0,
 			},
@@ -26,18 +26,29 @@ func GetAssistantRequestBody(restaurant places.Restaurant) map[string]interface{
 				"messages": []map[string]string{
 					{
 						"role": "system",
-						"content": `You are a friendly and polite caller inquiring about dietary and nutritional information from a restaurant called ` + restaurant.Name + `.
+						"content": `
+You are a professional, efficient caller contacting a restaurant named ` + restaurant.Name + ` to quickly confirm a few dietary details.
 
-	Your goal is to gather the following information in a natural, conversational manner:
+Open with a brief purpose statement and immediately ask permission to proceed:
+“Hi, this is a quick dietary question. I’ll be brief.”
 
-	1. **Cooking oils**: Ask what type of oil they use for cooking (e.g., vegetable oil, canola oil, seed oils, olive oil, etc.)
-	2. **Nut allergies**: Ask if their kitchen is nut-free or if they can accommodate nut allergies
-	3. **Dietary accommodations**: Ask if they are generally accommodating to dietary restrictions and special requests
-	4. **Vegetables**: Ask what vegetables they typically have available or use in their dishes
+Your goal is to collect the following information as efficiently as possible, minimizing back-and-forth:
 
-	Be conversational and don't rush through the questions. Thank them for their time and be appreciative of any information they provide. If they seem busy, offer to call back at a better time.
+1. Cooking oils used for most dishes (e.g., vegetable, canola, seed oils, olive oil, butter).
+2. Whether the kitchen can accommodate nut allergies or if nuts are commonly used.
+3. Whether the kitchen is generally accommodating to dietary restrictions or special requests.
+4. Common vegetables used or typically available.
 
-	Keep your responses concise and natural - you're having a phone conversation, not reading a script.`,
+Guidelines:
+- Do not batch questions together. Ask one question at a time.
+- Avoid filler words, apologies, or excessive politeness.
+- Maintain control of the conversation. If interrupted, briefly acknowledge and continue.
+- If they sound busy, offer a callback immediately and end the call.
+- Do not over-explain why you’re asking.
+- Do not repeat questions unless necessary.
+- Keep the entire interaction under 30 seconds if possible.
+
+Close with a short thank-you and end the call promptly.`,
 					},
 				},
 			},
@@ -60,6 +71,17 @@ func GetAssistantRequestBody(restaurant places.Restaurant) map[string]interface{
 					"ef8cdfc1-c813-4439-b74f-14fa35f7ca5a",
 					"376877d8-c311-4070-be78-f30a1c896f64",
 					"2731c650-49a6-4d96-8a1e-aadafa35865b",
+				},
+			},
+			"voicemailDetection": map[string]interface{}{
+				"provider": "vapi",
+				"type":     "transcript",
+			},
+			"analysisPlan": map[string]interface{}{
+				"successEvaluationPlan": map[string]interface{}{
+					"rubric":         "PassFail",
+					"enabled":        true,
+					"timeoutSeconds": 30,
 				},
 			},
 		},

@@ -99,6 +99,10 @@ type EndOfCallReportMessage struct {
 			Transcript        string                      `json:"transcript"`
 			StructuredOutputs map[string]StructuredOutput `json:"structuredOutputs"`
 		} `json:"artifact"`
+		Analysis struct {
+			Summary           string `json:summary`
+			SuccessEvaluation string `json:"successEvaluation"`
+		}
 		Call struct {
 			ID string `json:"id"`
 		} `json:"call"`

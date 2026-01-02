@@ -3,6 +3,7 @@ package places
 import (
 	"eatsavvy/pkg/http"
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"os"
 )
@@ -12,6 +13,7 @@ type PlacesClient struct {
 }
 
 func (pc *PlacesClient) GetPlaces(textQuery string, fields []string) (Places, error) {
+	slog.Info("[places.GetPlaces] Getting places for text query", "textQuery", textQuery)
 	reqBody := map[string]string{
 		"textQuery": textQuery,
 	}
@@ -23,9 +25,13 @@ func (pc *PlacesClient) GetPlaces(textQuery string, fields []string) (Places, er
 	}
 
 	respBody, statusCode, err := pc.httpClient.Post("https://places.googleapis.com/v1/places:searchText", reqBody, headers)
-	if err != nil || statusCode >= 400 {
+	if err != nil {
 		slog.Error("[places.GetPlaces] Failed to send HTTP request", "error", err)
 		return Places{}, err
+	}
+	if statusCode >= 400 {
+		slog.Error("[places.GetPlaces] Failed to get places", "statusCode", statusCode, "responseBody", string(respBody))
+		return Places{}, errors.New("failed to get places: " + string(respBody))
 	}
 
 	var places Places
@@ -48,9 +54,13 @@ func (pc *PlacesClient) GetPlaceDetails(placeId string, fields []string) (Place,
 	}
 
 	respBody, statusCode, err := pc.httpClient.Get("https://places.googleapis.com/v1/places/"+placeId, headers)
-	if err != nil || statusCode >= 400 {
-		slog.Error("[places.GetPlaceDetails] Failed to send HTTP request", "error", err, "statusCode", statusCode, "responseBody", string(respBody))
+	if err != nil {
+		slog.Error("[places.GetPlaceDetails] Failed to send HTTP request", "error", err)
 		return Place{}, err
+	}
+	if statusCode >= 400 {
+		slog.Error("[places.GetPlaceDetails] Failed to get place details", "statusCode", statusCode, "responseBody", string(respBody))
+		return Place{}, errors.New("failed to get place details: " + string(respBody))
 	}
 
 	var place Place

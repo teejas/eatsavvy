@@ -43,6 +43,27 @@ func StartServer(port string) {
 		c.JSON(netHttp.StatusOK, restaurant)
 	})
 
+	r.POST("/search-and-enrich", func(c *gin.Context) {
+		var request struct {
+			Query string `json:"query"`
+		}
+		if err := c.ShouldBindJSON(&request); err != nil {
+			c.JSON(netHttp.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+		restaurants, err := restaurantClient.GetRestaurants(request.Query)
+		if err != nil {
+			c.JSON(netHttp.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+		restaurant, err := restaurantClient.EnrichRestaurantDetails(restaurants[0].Id)
+		if err != nil {
+			c.JSON(netHttp.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+		c.JSON(netHttp.StatusOK, restaurant)
+	})
+
 	r.POST("/process-eocr", func(c *gin.Context) {
 		var request places.EndOfCallReportMessage
 		if err := c.ShouldBindJSON(&request); err != nil {

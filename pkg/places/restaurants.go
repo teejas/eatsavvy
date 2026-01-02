@@ -110,7 +110,9 @@ func (rc *RestaurantsClient) EnrichRestaurantDetails(restaurantId string) (Resta
 	restaurant.Id = place.Id
 	restaurant.Name = place.DisplayName.Text
 	restaurant.Address = place.Address
-	restaurant.PhoneNumber = place.NationalPhoneNumber
+	if place.NationalPhoneNumber != "" {
+		restaurant.PhoneNumber = place.NationalPhoneNumber
+	}
 	restaurant.OpenHours = periodsToTimeRanges(place.CurrentOpeningHours.Periods, place.UtcOffsetMinutes)
 	restaurant.CreatedAt = time.Now()
 	restaurant.UpdatedAt = time.Now()
@@ -123,7 +125,7 @@ func (rc *RestaurantsClient) EnrichRestaurantDetails(restaurantId string) (Resta
 		ON CONFLICT (places_id) DO UPDATE SET 
 			name = EXCLUDED.name, 
 			address = EXCLUDED.address, 
-			phone_number = EXCLUDED.phone_number, 
+			phone_number = COALESCE(restaurants.phone_number, EXCLUDED.phone_number), 
 			open_hours = EXCLUDED.open_hours,
 			enrichment_status = EXCLUDED.enrichment_status,
 			updated_at = NOW()
@@ -171,16 +173,20 @@ func (rc *RestaurantsClient) UpdateRestaurantNutritionInfo(eocr EndOfCallReportM
 	var placesId string
 
 	err := rc.dbClient.Db.QueryRow(rc.dbClient.Ctx,
-		`UPDATE public.calls SET call_status = $1, transcript = $2, structured_outputs = $3, ended_reason = $4, updated_at = NOW() WHERE vapi_call_id = $5 returning places_id`,
-		"completed", eocr.Message.Artifact.Transcript, eocr.Message.Artifact.StructuredOutputs, eocr.Message.EndedReason, eocr.Message.Call.ID,
+		`UPDATE public.calls SET call_status = $1, transcript = $2, structured_outputs = $3, summary = $4, success_evaluation = $5, ended_reason = $6, updated_at = NOW() WHERE vapi_call_id = $7 returning places_id`,
+		"completed", eocr.Message.Artifact.Transcript, eocr.Message.Artifact.StructuredOutputs, eocr.Message.Analysis.Summary, eocr.Message.Analysis.SuccessEvaluation, eocr.Message.EndedReason, eocr.Message.Call.ID,
 	).Scan(&placesId)
 	if err != nil {
 		return err
 	}
 
+	status := EnrichmentStatusCompleted
+	if eocr.Message.Analysis.SuccessEvaluation == "false" || eocr.Message.EndedReason != "customer-ended-call" {
+		status = EnrichmentStatusFailed
+	}
 	_, err = rc.dbClient.Db.Exec(rc.dbClient.Ctx,
 		`UPDATE public.restaurants SET nutrition_info = $1, enrichment_status = $2, updated_at = NOW() WHERE places_id = $3`,
-		nutritionInfo, EnrichmentStatusCompleted, placesId,
+		nutritionInfo, status, placesId,
 	)
 	if err != nil {
 		slog.Error("[places.UpdateRestaurantNutritionInfo] Failed to update restaurant nutrition info", "error", err)

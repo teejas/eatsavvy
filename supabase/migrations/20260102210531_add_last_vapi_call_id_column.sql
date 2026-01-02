@@ -1,0 +1,1 @@
+alter table if exists public.restaurants add column if not exists last_vapi_call_id text;

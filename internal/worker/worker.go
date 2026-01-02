@@ -68,7 +68,6 @@ func (w *Worker) Start() {
 				} else {
 					slog.Error("[worker.processMessages] Failed to get restaurant ID", "error", err)
 				}
-				continue
 			}
 			msg.Ack(false)
 		}
@@ -104,8 +103,8 @@ func (w *Worker) processMessage(msg amqp091.Delivery) (places.Restaurant, error)
 			}
 			slog.Info("[worker.processMessage] Vapi phone call made", "callId", vapiResponse.Id)
 			_, err = w.dbClient.Db.Exec(w.dbClient.Ctx,
-				`UPDATE public.restaurants SET enrichment_status = $1 WHERE places_id = $2`,
-				places.EnrichmentStatusInProgress, restaurant.Id,
+				`UPDATE public.restaurants SET enrichment_status = $1, last_vapi_call_id = $2 WHERE places_id = $3`,
+				places.EnrichmentStatusInProgress, vapiResponse.Id, restaurant.Id,
 			)
 			if err != nil {
 				slog.Error("[worker.processMessage] Failed to update enrichment status", "error", err)
