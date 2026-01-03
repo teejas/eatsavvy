@@ -1,6 +1,9 @@
 package vapi
 
-import "eatsavvy/pkg/places"
+import (
+	"eatsavvy/pkg/places"
+	"os"
+)
 
 func GetAssistantRequestBody(restaurant places.Restaurant) map[string]interface{} {
 	return map[string]interface{}{
@@ -59,7 +62,7 @@ Close with a short thank-you and end the call promptly.`,
 				},
 			},
 			"server": map[string]interface{}{
-				"url":                      "https://eatsavvy-api.tejas.wtf/process-eocr",
+				"url":                      os.Getenv("EATSAVVY_API_URL") + "/process-eocr",
 				"staticIpAddressesEnabled": true,
 			},
 			"serverMessages": []string{

@@ -1,6 +1,6 @@
 import { useMemo, useState, useEffect } from 'react';
 import { SearchBar } from '../components/SearchBar';
-import { RestaurantRow, Restaurant } from '../components/RestaurantRow';
+import { RestaurantRow, Restaurant, TimeRange } from '../components/RestaurantRow';
 import { UtensilsCrossed, Sparkles, Loader2, AlertCircle } from 'lucide-react';
 
 const API_BASE_URL = import.meta.env.VITE_EATSAVVY_API_URL || 'https://api.eatsavvy.org';
@@ -19,9 +19,9 @@ function authFetch(url: string, options: RequestInit = {}): Promise<Response> {
 
 // API response types
 interface ApiNutritionInfo {
-  cookingOils: string;
-  nutAllergies: string;
-  dietaryAccommodations: string;
+  oil: string;
+  nutFree: boolean;
+  accommodations: string;
   vegetables: string;
 }
 
@@ -30,6 +30,7 @@ interface ApiRestaurant {
   name: string;
   address: string;
   phoneNumber: string;
+  openHours: TimeRange[] | null;
   nutritionInfo: ApiNutritionInfo | null;
   rating: number | null;
   enrichmentStatus: Restaurant['enrichment_status'];
@@ -43,14 +44,12 @@ function transformRestaurant(api: ApiRestaurant): Restaurant {
     phone: api.phoneNumber || 'N/A',
     address: api.address || '',
     rating: api.rating,
+    openHours: api.openHours,
     nutrition: {
-      oil: api.nutritionInfo?.cookingOils || 'Unknown',
-      nutFree: api.nutritionInfo?.nutAllergies?.toLowerCase().includes('no') || 
-               api.nutritionInfo?.nutAllergies?.toLowerCase().includes('free') || false,
-      accommodations: api.nutritionInfo?.dietaryAccommodations || 'None',
-      vegetablesUsed: api.nutritionInfo?.vegetables 
-        ? api.nutritionInfo.vegetables.split(',').map(v => v.trim()).filter(Boolean)
-        : [],
+      oil: api.nutritionInfo?.oil || 'Unknown',
+      nutFree: api.nutritionInfo?.nutFree || false,
+      accommodations: api.nutritionInfo?.accommodations || 'None',
+      vegetablesUsed: api.nutritionInfo?.vegetables || 'Unknown',
     },
     enrichment_status: api.enrichmentStatus,
   };
@@ -219,10 +218,11 @@ export function RestaurantListView() {
             <div className="col-span-1 flex items-center justify-center">
               <input type="checkbox" checked={allSelected} onChange={handleSelectAll} className="w-4 h-4 rounded border-zinc-600 bg-zinc-800 text-sky-500 focus:ring-sky-400 focus:ring-offset-zinc-900 cursor-pointer" aria-label="Select all" />
             </div>
-            <div className="col-span-3">Restaurant Details</div>
+            <div className="col-span-2">Restaurant Details</div>
             <div className="col-span-2">Contact Info</div>
             <div className="col-span-1">Rating</div>
-            <div className="col-span-4">Nutrition Info</div>
+            <div className="col-span-2">Open Hours</div>
+            <div className="col-span-3">Nutrition Info</div>
             <div className="col-span-1 text-right">Status</div>
           </div>
         </div>

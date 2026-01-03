@@ -90,46 +90,41 @@ func (w *Worker) processMessage(msg amqp091.Delivery) (places.Restaurant, error)
 	now := time.Now().UTC()
 	currentDay := int(now.Weekday())
 	currentHour := now.Hour()
-	openNow := false
-	for _, openHour := range restaurant.OpenHours {
-		if (openHour.Open.Weekday == currentDay && openHour.Open.Hour < currentHour) &&
-			(openHour.Close.Hour > currentHour || openHour.Close.Weekday > currentDay) {
-			openNow = true
-			slog.Info("[worker.processMessage] Restaurant is open", "restaurant", restaurant.Name)
-			vapiResponse, err := w.vapiClient.CreateCall(restaurant)
-			if err != nil {
-				slog.Error("[worker.processMessage] Failed to make Vapi phone call", "error", err)
-				return restaurant, err
-			}
-			slog.Info("[worker.processMessage] Vapi phone call made", "callId", vapiResponse.Id)
-			_, err = w.dbClient.Db.Exec(w.dbClient.Ctx,
-				`UPDATE public.restaurants SET enrichment_status = $1, last_vapi_call_id = $2 WHERE places_id = $3`,
-				places.EnrichmentStatusInProgress, vapiResponse.Id, restaurant.Id,
-			)
-			if err != nil {
-				slog.Error("[worker.processMessage] Failed to update enrichment status", "error", err)
-				return restaurant, err
-			}
-			_, err = w.dbClient.Db.Exec(w.dbClient.Ctx,
-				`INSERT INTO public.calls (places_id, vapi_call_id, call_status) VALUES ($1, $2, $3)`,
-				restaurant.Id, vapiResponse.Id, "initiated",
-			)
-			if err != nil {
-				slog.Error("[worker.processMessage] Failed to update Vapi call ID", "error", err)
-				return restaurant, err
-			}
-			return restaurant, nil
-		}
-	}
-	if !openNow {
-		slog.Info("[worker.processMessage] Restaurant is closed", "restaurant", restaurant.Name)
-		err := w.publisher.PublishDelayedMessage(restaurant, 1*time.Hour)
+	openNow := isRestaurantOpen(restaurant.OpenHours, currentDay, currentHour)
+	if openNow {
+		slog.Info("[worker.processMessage] Restaurant is open", "restaurant", restaurant.Name)
+		vapiResponse, err := w.vapiClient.CreateCall(restaurant)
 		if err != nil {
-			slog.Error("[worker.processMessage] Failed to publish message", "error", err)
+			slog.Error("[worker.processMessage] Failed to make Vapi phone call", "error", err)
 			return restaurant, err
 		}
-		slog.Info("[worker.processMessage] Published message with delay", "delay", 1*time.Hour)
+		slog.Info("[worker.processMessage] Vapi phone call made", "callId", vapiResponse.Id)
+		_, err = w.dbClient.Db.Exec(w.dbClient.Ctx,
+			`UPDATE public.restaurants SET enrichment_status = $1, last_vapi_call_id = $2 WHERE places_id = $3`,
+			places.EnrichmentStatusInProgress, vapiResponse.Id, restaurant.Id,
+		)
+		if err != nil {
+			slog.Error("[worker.processMessage] Failed to update enrichment status", "error", err)
+			return restaurant, err
+		}
+		_, err = w.dbClient.Db.Exec(w.dbClient.Ctx,
+			`INSERT INTO public.calls (places_id, vapi_call_id, call_status) VALUES ($1, $2, $3)`,
+			restaurant.Id, vapiResponse.Id, "initiated",
+		)
+		if err != nil {
+			slog.Error("[worker.processMessage] Failed to update Vapi call ID", "error", err)
+			return restaurant, err
+		}
+		return restaurant, nil
 	}
+	slog.Info("[worker.processMessage] Restaurant is closed", "restaurant", restaurant.Name)
+	callbackTime := getCallbackTime(restaurant.OpenHours, currentDay, currentHour)
+	err = w.publisher.PublishDelayedMessage(restaurant, callbackTime)
+	if err != nil {
+		slog.Error("[worker.processMessage] Failed to publish message", "error", err)
+		return restaurant, err
+	}
+	slog.Info("[worker.processMessage] Published message with delay", "delay", callbackTime, "restaurant", restaurant.Name)
 	return restaurant, nil
 }
 
@@ -144,4 +139,30 @@ func (w *Worker) handleFailure(restaurantId string) error {
 	}
 	slog.Info("[worker.processMessage] Updated enrichment status to failed", "places_id", restaurantId)
 	return nil
+}
+
+func isRestaurantOpen(openHours []places.TimeRange, currentDay int, currentHour int) bool {
+	for _, openHour := range openHours {
+		if (openHour.Open.Weekday == currentDay && openHour.Open.Hour < currentHour) &&
+			(openHour.Close.Hour > currentHour || openHour.Close.Weekday > currentDay) {
+			return true
+		}
+		if (openHour.Open.Weekday < currentDay) &&
+			(openHour.Close.Weekday > currentDay || openHour.Close.Hour > currentHour) {
+			return true
+		}
+	}
+	return false
+}
+
+func getCallbackTime(openHours []places.TimeRange, currentDay int, currentHour int) time.Duration {
+	for _, openHour := range openHours {
+		if openHour.Open.Weekday == currentDay && openHour.Open.Hour > currentHour {
+			return time.Duration(openHour.Open.Hour-currentHour) * time.Hour
+		}
+		if openHour.Open.Weekday > currentDay {
+			return (time.Duration(24-currentHour) + time.Duration(openHour.Open.Hour)) * time.Hour
+		}
+	}
+	return 1 * time.Hour
 }
