@@ -1,6 +1,8 @@
 package places
 
 import (
+	"log/slog"
+	"slices"
 	"sort"
 	"strings"
 )
@@ -19,8 +21,10 @@ func getGooglePlacesFieldMask(fields []string, needsPlacesPrefix bool) string {
 func filterRestaurants(places []Place) []Place {
 	restaurants := []Place{}
 	for _, place := range places {
-		if strings.Contains(place.PrimaryType, "restaurant") {
+		if place.PrimaryType == "" || slices.Contains(GooglePlacesRestaurantTypes, place.PrimaryType) {
 			restaurants = append(restaurants, place)
+		} else {
+			slog.Info("[places.filterRestaurants] Skipping place", "place", place.DisplayName.Text, "primaryType", place.PrimaryType)
 		}
 	}
 	return restaurants

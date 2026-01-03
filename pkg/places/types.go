@@ -13,9 +13,9 @@ const (
 )
 
 type NutritionInfo struct {
-	CookingOils           string `json:"cookingOils"`
-	NutAllergies          string `json:"nutAllergies"`
-	DietaryAccommodations string `json:"dietaryAccommodations"`
+	CookingOils           string `json:"oil"`
+	NutFree               bool   `json:"nutFree"`
+	DietaryAccommodations string `json:"accommodations"`
 	Vegetables            string `json:"vegetables"`
 }
 
@@ -25,7 +25,8 @@ type Restaurant struct {
 	Address          string           `json:"address"`
 	PhoneNumber      string           `json:"phoneNumber"`
 	OpenHours        []TimeRange      `json:"openHours"`
-	NutritionInfo    []byte           `json:"nutritionInfo"`
+	NutritionInfo    *NutritionInfo   `json:"nutritionInfo"`
+	Rating           *float64         `json:"rating"`
 	CreatedAt        time.Time        `json:"createdAt"`
 	UpdatedAt        time.Time        `json:"updatedAt"`
 	EnrichmentStatus EnrichmentStatus `json:"enrichmentStatus"`
@@ -43,6 +44,7 @@ type Place struct {
 	NationalPhoneNumber string       `json:"nationalPhoneNumber"`
 	CurrentOpeningHours OpeningHours `json:"currentOpeningHours"`
 	UtcOffsetMinutes    int          `json:"utcOffsetMinutes"`
+	Rating              float64      `json:"rating"`
 }
 
 type OpeningHours struct {
@@ -108,4 +110,71 @@ type EndOfCallReportMessage struct {
 		} `json:"call"`
 		EndedReason string `json:"endedReason"`
 	} `json:"message"`
+}
+
+var GooglePlacesRestaurantTypes = []string{
+	"acai_shop",
+	"afghani_restaurant",
+	"african_restaurant",
+	"american_restaurant",
+	"asian_restaurant",
+	"bagel_shop",
+	"bakery",
+	"bar",
+	"bar_and_grill",
+	"barbecue_restaurant",
+	"brazilian_restaurant",
+	"breakfast_restaurant",
+	"brunch_restaurant",
+	"buffet_restaurant",
+	"cafe",
+	"cafeteria",
+	"candy_store",
+	"cat_cafe",
+	"chinese_restaurant",
+	"chocolate_factory",
+	"chocolate_shop",
+	"coffee_shop",
+	"confectionery",
+	"deli",
+	"dessert_restaurant",
+	"dessert_shop",
+	"diner",
+	"dog_cafe",
+	"donut_shop",
+	"fast_food_restaurant",
+	"fine_dining_restaurant",
+	"food_court",
+	"french_restaurant",
+	"greek_restaurant",
+	"hamburger_restaurant",
+	"ice_cream_shop",
+	"indian_restaurant",
+	"indonesian_restaurant",
+	"italian_restaurant",
+	"japanese_restaurant",
+	"juice_shop",
+	"korean_restaurant",
+	"lebanese_restaurant",
+	"meal_delivery",
+	"meal_takeaway",
+	"mediterranean_restaurant",
+	"mexican_restaurant",
+	"middle_eastern_restaurant",
+	"pizza_restaurant",
+	"pub",
+	"ramen_restaurant",
+	"restaurant",
+	"sandwich_shop",
+	"seafood_restaurant",
+	"spanish_restaurant",
+	"steak_house",
+	"sushi_restaurant",
+	"tea_house",
+	"thai_restaurant",
+	"turkish_restaurant",
+	"vegan_restaurant",
+	"vegetarian_restaurant",
+	"vietnamese_restaurant",
+	"wine_bar",
 }

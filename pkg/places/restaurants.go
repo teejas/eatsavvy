@@ -1,9 +1,11 @@
 package places
 
 import (
+	"database/sql"
 	"eatsavvy/pkg/db"
 	"eatsavvy/pkg/http"
 	"eatsavvy/pkg/queue"
+	"errors"
 
 	"encoding/json"
 	"time"
@@ -35,7 +37,51 @@ func (rc *RestaurantsClient) Close() {
 	rc.publisher.Close()
 }
 
-func (rc *RestaurantsClient) GetRestaurants(textQuery string) ([]Place, error) {
+func (rc *RestaurantsClient) GetRestaurant(placesId string) (Restaurant, error) {
+	var restaurant Restaurant
+	err := rc.dbClient.Db.QueryRow(rc.dbClient.Ctx,
+		`SELECT places_id, name, address, phone_number, open_hours, nutrition_info, created_at, updated_at, enrichment_status, rating 
+			FROM public.restaurants WHERE places_id = $1`,
+		placesId,
+	).Scan(&restaurant.Id, &restaurant.Name, &restaurant.Address, &restaurant.PhoneNumber, &restaurant.OpenHours,
+		&restaurant.NutritionInfo, &restaurant.CreatedAt, &restaurant.UpdatedAt, &restaurant.EnrichmentStatus, &restaurant.Rating)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return Restaurant{}, err
+		}
+		slog.Error("[restaurants.GetRestaurant] Failed to get restaurant", "error", err)
+		return Restaurant{}, err
+	}
+	return restaurant, nil
+}
+
+func (rc *RestaurantsClient) GetAllRestaurants() ([]Restaurant, error) {
+	var restaurants []Restaurant
+	rows, err := rc.dbClient.Db.Query(rc.dbClient.Ctx,
+		`SELECT places_id, name, address, phone_number, open_hours, nutrition_info, created_at, updated_at, enrichment_status, rating 
+			FROM public.restaurants`,
+	)
+	if err != nil {
+		slog.Error("[restaurants.GetAllRestaurants] Failed to get all restaurants", "error", err)
+		return []Restaurant{}, err
+	}
+
+	defer rows.Close()
+	for rows.Next() {
+		var restaurant Restaurant
+		err = rows.Scan(&restaurant.Id, &restaurant.Name, &restaurant.Address, &restaurant.PhoneNumber,
+			&restaurant.OpenHours, &restaurant.NutritionInfo, &restaurant.CreatedAt, &restaurant.UpdatedAt,
+			&restaurant.EnrichmentStatus, &restaurant.Rating)
+		if err != nil {
+			slog.Error("[restaurants.GetAllRestaurants] Failed to get all restaurants", "error", err)
+			return []Restaurant{}, err
+		}
+		restaurants = append(restaurants, restaurant)
+	}
+	return restaurants, nil
+}
+
+func (rc *RestaurantsClient) SearchRestaurants(textQuery string) ([]Restaurant, error) {
 	fields := []string{
 		"id",
 		"displayName",
@@ -43,22 +89,43 @@ func (rc *RestaurantsClient) GetRestaurants(textQuery string) ([]Place, error) {
 	}
 	places, err := rc.GetPlaces(textQuery, fields)
 	if err != nil {
-		slog.Error("[places.GetRestaurantDetails] Failed to get places details", "error", err)
+		slog.Error("[restaurants.SearchRestaurants] Failed to get restaurants", "error", err)
 		return nil, err
 	}
-	restaurants := filterRestaurants(places.Places)
+	filteredPlaces := filterRestaurants(places.Places)
+	restaurants := []Restaurant{}
+	for _, place := range filteredPlaces {
+		restaurant, err := rc.GetRestaurant(place.Id)
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			slog.Error("[restaurants.SearchRestaurants] Failed to get restaurant", "error", err)
+			return []Restaurant{}, err
+		}
+		if errors.Is(err, sql.ErrNoRows) {
+			restaurant = Restaurant{
+				Id:   place.Id,
+				Name: place.DisplayName.Text,
+			}
+		}
+		restaurants = append(restaurants, restaurant)
+	}
 	return restaurants, nil
 }
 
-func (rc *RestaurantsClient) EnrichRestaurantDetails(restaurantId string) (Restaurant, error) {
+func (rc *RestaurantsClient) enrichRestaurantDetails(restaurantId string) (Restaurant, error) {
 	var restaurant Restaurant
 	var openHours []byte
 	var nutritionInfo []byte
 	err := rc.dbClient.Db.QueryRow(rc.dbClient.Ctx,
-		`SELECT places_id, name, address, phone_number, open_hours, nutrition_info, created_at, updated_at, enrichment_status 
+		`SELECT places_id, name, address, phone_number, open_hours, nutrition_info, created_at, updated_at, enrichment_status, rating
 		 FROM public.restaurants WHERE places_id = $1`,
 		restaurantId,
-	).Scan(&restaurant.Id, &restaurant.Name, &restaurant.Address, &restaurant.PhoneNumber, &openHours, &nutritionInfo, &restaurant.CreatedAt, &restaurant.UpdatedAt, &restaurant.EnrichmentStatus)
+	).Scan(&restaurant.Id, &restaurant.Name, &restaurant.Address, &restaurant.PhoneNumber, &openHours, &nutritionInfo,
+		&restaurant.CreatedAt, &restaurant.UpdatedAt, &restaurant.EnrichmentStatus, &restaurant.Rating)
+
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		slog.Error("[restaurants.EnrichRestaurantDetails] Failed to get restaurant details", "error", err)
+		return Restaurant{}, err
+	}
 	if err == nil {
 		if len(openHours) > 0 {
 			json.Unmarshal(openHours, &restaurant.OpenHours)
@@ -80,17 +147,18 @@ func (rc *RestaurantsClient) EnrichRestaurantDetails(restaurantId string) (Resta
 		"nationalPhoneNumber",
 		"formattedAddress",
 		"utcOffsetMinutes",
+		"rating",
 	}
 	place, err := rc.GetPlaceDetails(restaurantId, fields)
 	if err != nil {
-		slog.Error("[places.EnrichRestaurantDetails] Failed to get place details", "error", err)
+		slog.Error("[restaurants.EnrichRestaurantDetails] Failed to get place details", "error", err)
 		return Restaurant{}, err
 	}
 
 	// Start transaction to check enrichment_status and upsert atomically
 	tx, err := rc.dbClient.Db.Begin(rc.dbClient.Ctx)
 	if err != nil {
-		slog.Error("[places.EnrichRestaurantDetails] Failed to begin transaction", "error", err)
+		slog.Error("[restaurants.EnrichRestaurantDetails] Failed to begin transaction", "error", err)
 		return Restaurant{}, err
 	}
 	defer tx.Rollback(rc.dbClient.Ctx)
@@ -103,7 +171,7 @@ func (rc *RestaurantsClient) EnrichRestaurantDetails(restaurantId string) (Resta
 	).Scan(&existingStatus)
 
 	if err == nil && (existingStatus == string(EnrichmentStatusQueued) || existingStatus == string(EnrichmentStatusInProgress)) {
-		slog.Info("[places.EnrichRestaurantDetails] Skipping insert, enrichment already in progress or queued", "places_id", place.Id, "status", existingStatus)
+		slog.Info("[restaurants.EnrichRestaurantDetails] Skipping insert, enrichment already in progress or queued", "places_id", place.Id, "status", existingStatus)
 		return restaurant, nil
 	}
 
@@ -114,52 +182,54 @@ func (rc *RestaurantsClient) EnrichRestaurantDetails(restaurantId string) (Resta
 		restaurant.PhoneNumber = place.NationalPhoneNumber
 	}
 	restaurant.OpenHours = periodsToTimeRanges(place.CurrentOpeningHours.Periods, place.UtcOffsetMinutes)
+	restaurant.Rating = &place.Rating
 	restaurant.CreatedAt = time.Now()
 	restaurant.UpdatedAt = time.Now()
 	restaurant.EnrichmentStatus = EnrichmentStatusQueued
 
 	// Proceed with upsert and set enrichment_status to "queued"
 	_, err = tx.Exec(rc.dbClient.Ctx,
-		`INSERT INTO public.restaurants (places_id, name, address, phone_number, open_hours, enrichment_status) 
-		VALUES ($1, $2, $3, $4, $5, $6) 
+		`INSERT INTO public.restaurants (places_id, name, address, phone_number, open_hours, rating, enrichment_status) 
+		VALUES ($1, $2, $3, $4, $5, $6, $7) 
 		ON CONFLICT (places_id) DO UPDATE SET 
 			name = EXCLUDED.name, 
 			address = EXCLUDED.address, 
 			phone_number = COALESCE(restaurants.phone_number, EXCLUDED.phone_number), 
 			open_hours = EXCLUDED.open_hours,
+			rating = EXCLUDED.rating,
 			enrichment_status = EXCLUDED.enrichment_status,
 			updated_at = NOW()
 		`,
-		place.Id, place.DisplayName.Text, place.Address, place.NationalPhoneNumber,
-		periodsToTimeRanges(place.CurrentOpeningHours.Periods, place.UtcOffsetMinutes), EnrichmentStatusQueued,
+		restaurant.Id, restaurant.Name, restaurant.Address, restaurant.PhoneNumber,
+		restaurant.OpenHours, restaurant.Rating, restaurant.EnrichmentStatus,
 	)
 	if err != nil {
-		slog.Error("[places.EnrichRestaurantDetails] Failed to insert restaurant details", "error", err)
+		slog.Error("[restaurants.EnrichRestaurantDetails] Failed to insert restaurant details", "error", err)
 		return Restaurant{}, err
 	}
 
 	if err = tx.Commit(rc.dbClient.Ctx); err != nil {
-		slog.Error("[places.EnrichRestaurantDetails] Failed to commit transaction", "error", err)
+		slog.Error("[restaurants.EnrichRestaurantDetails] Failed to commit transaction", "error", err)
 		return Restaurant{}, err
 	}
 
-	slog.Info("[places.EnrichRestaurantDetails] Upserted restaurant", "places_id", restaurant.Id)
+	slog.Info("[restaurants.EnrichRestaurantDetails] Upserted restaurant", "places_id", restaurant.Id)
 
 	err = rc.publisher.PublishMessage(restaurant)
 	if err != nil {
-		slog.Error("[places.EnrichRestaurantDetails] Failed to publish message", "error", err)
+		slog.Error("[restaurants.EnrichRestaurantDetails] Failed to publish message", "error", err)
 		_, err = rc.dbClient.Db.Exec(rc.dbClient.Ctx,
 			`UPDATE public.restaurants SET enrichment_status = $1 WHERE places_id = $2`,
 			EnrichmentStatusFailed, restaurant.Id,
 		)
 		if err != nil {
-			slog.Error("[places.EnrichRestaurantDetails] Failed to update enrichment status", "error", err)
+			slog.Error("[restaurants.EnrichRestaurantDetails] Failed to update enrichment status", "error", err)
 			return Restaurant{}, err
 		}
 		return Restaurant{}, err
 	}
 
-	slog.Info("[places.EnrichRestaurantDetails] Enqueued enrichment job for restaurant", "places_id", place.Id)
+	slog.Info("[restaurants.EnrichRestaurantDetails] Enqueued enrichment job for restaurant", "places_id", place.Id)
 
 	return restaurant, nil
 }
@@ -182,6 +252,7 @@ func (rc *RestaurantsClient) UpdateRestaurantNutritionInfo(eocr EndOfCallReportM
 
 	status := EnrichmentStatusCompleted
 	if eocr.Message.Analysis.SuccessEvaluation == "false" || eocr.Message.EndedReason != "customer-ended-call" {
+		slog.Info("[restaurants.UpdateRestaurantNutritionInfo] Call was not successful", "places_id", placesId, "call_id", eocr.Message.Call.ID)
 		status = EnrichmentStatusFailed
 	}
 	_, err = rc.dbClient.Db.Exec(rc.dbClient.Ctx,
@@ -189,9 +260,21 @@ func (rc *RestaurantsClient) UpdateRestaurantNutritionInfo(eocr EndOfCallReportM
 		nutritionInfo, status, placesId,
 	)
 	if err != nil {
-		slog.Error("[places.UpdateRestaurantNutritionInfo] Failed to update restaurant nutrition info", "error", err)
+		slog.Error("[restaurants.UpdateRestaurantNutritionInfo] Failed to update restaurant nutrition info", "error", err)
 		return err
 	}
-	slog.Info("[places.UpdateRestaurantNutritionInfo] Updated restaurant nutrition info", "places_id", placesId)
+	slog.Info("[restaurants.UpdateRestaurantNutritionInfo] Updated restaurant nutrition info", "places_id", placesId)
 	return nil
+}
+
+func (rc *RestaurantsClient) BatchEnrichRestaurantDetails(restaurantIds []string) ([]Restaurant, error) {
+	restaurants := []Restaurant{}
+	for _, restaurantId := range restaurantIds {
+		restaurant, err := rc.enrichRestaurantDetails(restaurantId)
+		if err != nil {
+			return []Restaurant{}, err
+		}
+		restaurants = append(restaurants, restaurant)
+	}
+	return restaurants, nil
 }
