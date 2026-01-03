@@ -25,7 +25,7 @@ func authMiddleware() gin.HandlerFunc {
 func StartServer(port string) {
 	r := gin.Default()
 	r.Use(cors.New(cors.Config{
-		AllowOrigins:     []string{"https://eatsavvy.com", "http://localhost:5173"},
+		AllowOrigins:     []string{"https://eatsavvy.org", "http://localhost:5173"},
 		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
 		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization"},
 		AllowCredentials: true,
