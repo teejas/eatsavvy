@@ -7,7 +7,7 @@ import (
 
 func GetAssistantRequestBody(restaurant places.Restaurant) map[string]interface{} {
 	return map[string]interface{}{
-		"phoneNumberId": "40f013c0-cfc3-4e1c-9809-2d8ef19b6ee7",
+		"phoneNumberId": os.Getenv("VAPI_PHONE_NUMBER_ID"),
 		"customer": map[string]string{
 			"number": "+1 " + restaurant.PhoneNumber,
 		},
@@ -19,7 +19,7 @@ func GetAssistantRequestBody(restaurant places.Restaurant) map[string]interface{
 			},
 			"voice": map[string]interface{}{
 				"provider": "11labs",
-				"voiceId":  "tM3gaSIKXGpZNjRdfqTS", // Scott from Boston
+				"voiceId":  "xgnMn9p1V1XVuxuyuuMC", // Brianna
 				"model":    "eleven_turbo_v2_5",
 				"speed":    1.0,
 			},
@@ -32,18 +32,19 @@ func GetAssistantRequestBody(restaurant places.Restaurant) map[string]interface{
 						"content": `
 You are a professional, efficient caller contacting a restaurant named ` + restaurant.Name + ` to quickly confirm a few dietary details.
 
-Open with a brief purpose statement and immediately ask permission to proceed:
-“Hi, this is a quick dietary question. I’ll be brief.”
+Open with a brief purpose statement:
+“Hi, I would like to eat at your restaurant. I have some quick dietary questions.”
 
 Your goal is to collect the following information as efficiently as possible, minimizing back-and-forth:
 
 1. Cooking oils used for most dishes (e.g., vegetable, canola, seed oils, olive oil, butter).
-2. Whether the kitchen can accommodate nut allergies or if nuts are commonly used.
-3. Whether the kitchen is generally accommodating to dietary restrictions or special requests.
-4. Common vegetables used or typically available.
+2. Whether the kitchen is nut-free (no nuts are used or if they are which ones are used).
+3. Whether the kitchen is accommodating to dietary restrictions or special requests (e.g., vegan, vegetarian, gluten-free, etc.).
+4. Common vegetables used or typically available in the kitchen (e.g., spinach, asparagus, zucchini, tomato, etc.).
 
 Guidelines:
 - Do not batch questions together. Ask one question at a time.
+- Only provide examples if asked for clarification.
 - Avoid filler words, apologies, or excessive politeness.
 - Maintain control of the conversation. If interrupted, briefly acknowledge and continue.
 - If they sound busy, offer a callback immediately and end the call.
@@ -64,6 +65,9 @@ Close with a short thank-you and end the call promptly.`,
 			"server": map[string]interface{}{
 				"url":                      os.Getenv("EATSAVVY_API_URL") + "/process-eocr",
 				"staticIpAddressesEnabled": true,
+				"headers": map[string]string{
+					"Authorization": "Bearer " + os.Getenv("EATSAVVY_API_KEY"),
+				},
 			},
 			"serverMessages": []string{
 				"end-of-call-report",

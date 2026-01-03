@@ -90,7 +90,8 @@ func (w *Worker) processMessage(msg amqp091.Delivery) (places.Restaurant, error)
 	now := time.Now().UTC()
 	currentDay := int(now.Weekday())
 	currentHour := now.Hour()
-	openNow := isRestaurantOpen(restaurant.OpenHours, currentDay, currentHour)
+	currentMinute := now.Minute()
+	openNow := isRestaurantOpen(restaurant.OpenHours, currentDay, currentHour, currentMinute)
 	if openNow {
 		slog.Info("[worker.processMessage] Restaurant is open", "restaurant", restaurant.Name)
 		vapiResponse, err := w.vapiClient.CreateCall(restaurant)
@@ -118,7 +119,7 @@ func (w *Worker) processMessage(msg amqp091.Delivery) (places.Restaurant, error)
 		return restaurant, nil
 	}
 	slog.Info("[worker.processMessage] Restaurant is closed", "restaurant", restaurant.Name)
-	callbackTime := getCallbackTime(restaurant.OpenHours, currentDay, currentHour)
+	callbackTime := getCallbackTime(restaurant.OpenHours, currentDay, currentHour, currentMinute)
 	err = w.publisher.PublishDelayedMessage(restaurant, callbackTime)
 	if err != nil {
 		slog.Error("[worker.processMessage] Failed to publish message", "error", err)
@@ -141,28 +142,60 @@ func (w *Worker) handleFailure(restaurantId string) error {
 	return nil
 }
 
-func isRestaurantOpen(openHours []places.TimeRange, currentDay int, currentHour int) bool {
+// timeToMinutes converts a weekday/hour/minute to total minutes since start of week (Sunday 00:00)
+func timeToMinutes(weekday, hour, minute int) int {
+	return weekday*24*60 + hour*60 + minute
+}
+
+func isRestaurantOpen(openHours []places.TimeRange, currentDay int, currentHour int, currentMinute int) bool {
+	currentMins := timeToMinutes(currentDay, currentHour, currentMinute)
+
 	for _, openHour := range openHours {
-		if (openHour.Open.Weekday == currentDay && openHour.Open.Hour < currentHour) &&
-			(openHour.Close.Hour > currentHour || openHour.Close.Weekday > currentDay) {
-			return true
-		}
-		if (openHour.Open.Weekday < currentDay) &&
-			(openHour.Close.Weekday > currentDay || openHour.Close.Hour > currentHour) {
-			return true
+		openMins := timeToMinutes(openHour.Open.Weekday, openHour.Open.Hour, openHour.Open.Minute)
+		closeMins := timeToMinutes(openHour.Close.Weekday, openHour.Close.Hour, openHour.Close.Minute)
+
+		if closeMins > openMins {
+			// Normal case: opens and closes within the same week span
+			if currentMins >= openMins && currentMins < closeMins {
+				return true
+			}
+		} else {
+			// Week wrap: close time is "earlier" in the week than open time
+			// e.g., Sat 20:00 -> Sun 02:00 means open from Sat 20:00 to end of week OR start of week to Sun 02:00
+			if currentMins >= openMins || currentMins < closeMins {
+				return true
+			}
 		}
 	}
 	return false
 }
 
-func getCallbackTime(openHours []places.TimeRange, currentDay int, currentHour int) time.Duration {
+func getCallbackTime(openHours []places.TimeRange, currentDay int, currentHour int, currentMinute int) time.Duration {
+	currentMins := timeToMinutes(currentDay, currentHour, currentMinute)
+	weekMins := 7 * 24 * 60 // total minutes in a week
+
+	minWait := weekMins + 1 // initialize to more than a week (will be replaced)
+
 	for _, openHour := range openHours {
-		if openHour.Open.Weekday == currentDay && openHour.Open.Hour > currentHour {
-			return time.Duration(openHour.Open.Hour-currentHour) * time.Hour
+		openMins := timeToMinutes(openHour.Open.Weekday, openHour.Open.Hour, openHour.Open.Minute)
+
+		var wait int
+		if openMins > currentMins {
+			// Opens later this week
+			wait = openMins - currentMins
+		} else {
+			// Opens next week (wrap around)
+			wait = weekMins - currentMins + openMins
 		}
-		if openHour.Open.Weekday > currentDay {
-			return (time.Duration(24-currentHour) + time.Duration(openHour.Open.Hour)) * time.Hour
+
+		if wait < minWait {
+			minWait = wait
 		}
 	}
-	return 1 * time.Hour
+
+	if minWait > weekMins {
+		return 1 * time.Hour // default if no valid opening found
+	}
+
+	return time.Duration(minWait)*time.Minute + 30*time.Minute // add 30 min buffer
 }
