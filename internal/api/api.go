@@ -1,7 +1,7 @@
 package api
 
 import (
-	"eatsavvy/pkg/places"
+	"eatsavvy/internal/places"
 	netHttp "net/http"
 	"os"
 

@@ -1,8 +1,8 @@
 package main
 
 import (
+	"eatsavvy/internal/config"
 	"eatsavvy/internal/worker"
-	"eatsavvy/pkg/utils"
 
 	"log/slog"
 
@@ -10,9 +10,9 @@ import (
 )
 
 func main() {
-	err := godotenv.Load(utils.GetEnvFile())
+	err := godotenv.Load(config.GetEnvFile())
 	if err != nil {
-		slog.Error("Failed to load .env file", "error", err)
+		slog.Error("[worker.main] Failed to load .env file", "error", err)
 	}
 	worker := worker.NewWorker()
 	worker.Start()

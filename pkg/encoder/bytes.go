@@ -1,4 +1,4 @@
-package utils
+package encoder
 
 import (
 	"bytes"
@@ -11,7 +11,7 @@ func ToBytes(v interface{}) ([]byte, error) {
 	encoder := gob.NewEncoder(buffer)
 	err := encoder.Encode(v)
 	if err != nil {
-		slog.Error("[utils.ToBytes] Failed to encode value", "error", err)
+		slog.Error("[encoder.ToBytes] Failed to encode value", "error", err)
 		return nil, err
 	}
 	return buffer.Bytes(), nil
@@ -22,7 +22,7 @@ func FromBytes(b []byte, v interface{}) error {
 	decoder := gob.NewDecoder(buffer)
 	err := decoder.Decode(v)
 	if err != nil {
-		slog.Error("[utils.FromBytes] Failed to decode value", "error", err)
+		slog.Error("[encoder.FromBytes] Failed to decode value", "error", err)
 		return err
 	}
 	return nil

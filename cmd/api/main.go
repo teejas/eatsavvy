@@ -2,7 +2,7 @@ package main
 
 import (
 	"eatsavvy/internal/api"
-	"eatsavvy/pkg/utils"
+	"eatsavvy/internal/config"
 
 	"log/slog"
 
@@ -10,9 +10,9 @@ import (
 )
 
 func main() {
-	err := godotenv.Load(utils.GetEnvFile())
+	err := godotenv.Load(config.GetEnvFile())
 	if err != nil {
-		slog.Error("Failed to load .env file", "error", err)
+		slog.Error("[api.main] Failed to load .env file", "error", err)
 	}
 
 	api.StartServer("8080")

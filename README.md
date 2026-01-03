@@ -29,6 +29,8 @@ relatively short/easy
 5. we either process the transcript in API or also queue it for an offline worker to handle
 
 ## To-do
-[ ] refactor internal/worker/*
-[ ] dynamically generate structured outputs for assistant (using structuredMultiData)
-[ ] add Yelp support (for reviews and supplementing missing phone numbers)
+- [ ] cache retrieved restaurant info from SearchRestaurants instead of querying again in GetPlacesDetails (use in-mem cache, implement myself for fun)
+- [ ] refactor internal/worker/*
+- [ ] move openNow logic from UI to API (currently duplicated bleh)
+- [ ] dynamically generate structured outputs for assistant (using structuredMultiData)
+- [ ] add Yelp support (for reviews and supplementing missing phone numbers)

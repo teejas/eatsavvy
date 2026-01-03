@@ -133,6 +133,8 @@ export function RestaurantRow({
     pending: 'bg-zinc-500/10 text-zinc-400 border-zinc-500/20',
     failed: 'bg-red-500/10 text-red-400 border-red-500/20',
   };
+
+  const displayStatus = restaurant.enrichment_status || 'pending';
   return <div className={`group relative grid grid-cols-1 md:grid-cols-12 gap-4 p-4 border-b border-sky-400/20 transition-colors duration-200 items-start ${isSelected ? 'bg-sky-500/10' : 'hover:bg-[#27272a]'}`}>
       {/* Checkbox */}
       <div className="md:col-span-1 flex items-center justify-center pt-1">
@@ -155,9 +157,9 @@ export function RestaurantRow({
           <Phone className="w-3 h-3 text-sky-400/70" />
           <span>{restaurant.phone}</span>
         </div>
-        <div className="flex items-center gap-2">
-          <MapPin className="w-3 h-3 text-sky-400/70" />
-          <span className="truncate" title={restaurant.address}>{restaurant.address || 'N/A'}</span>
+        <div className="flex items-start gap-2">
+          <MapPin className="w-3 h-3 text-sky-400/70 mt-0.5 flex-shrink-0" />
+          <span className="whitespace-pre-line">{restaurant.address ? restaurant.address.split(', ').join(',\n') : 'N/A'}</span>
         </div>
       </div>
 
@@ -288,8 +290,8 @@ export function RestaurantRow({
 
       {/* Status Section */}
       <div className="md:col-span-1 flex justify-start md:justify-end">
-        <span className={`px-2 py-1 rounded-full text-[10px] uppercase font-bold tracking-wider border ${statusColors[restaurant.enrichment_status]}`}>
-          {restaurant.enrichment_status}
+        <span className={`px-2 py-1 rounded-full text-[10px] uppercase font-bold tracking-wider border ${statusColors[displayStatus]}`}>
+          {displayStatus}
         </span>
       </div>
 

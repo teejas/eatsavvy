@@ -86,6 +86,11 @@ func (rc *RestaurantsClient) SearchRestaurants(textQuery string) ([]Restaurant, 
 		"id",
 		"displayName",
 		"primaryType",
+		"currentOpeningHours",
+		"nationalPhoneNumber",
+		"formattedAddress",
+		"utcOffsetMinutes",
+		"rating",
 	}
 	places, err := rc.GetPlaces(textQuery, fields)
 	if err != nil {
@@ -102,8 +107,12 @@ func (rc *RestaurantsClient) SearchRestaurants(textQuery string) ([]Restaurant, 
 		}
 		if errors.Is(err, sql.ErrNoRows) {
 			restaurant = Restaurant{
-				Id:   place.Id,
-				Name: place.DisplayName.Text,
+				Id:          place.Id,
+				Name:        place.DisplayName.Text,
+				Address:     place.Address,
+				OpenHours:   periodsToTimeRanges(place.CurrentOpeningHours.Periods, place.UtcOffsetMinutes),
+				PhoneNumber: place.NationalPhoneNumber,
+				Rating:      &place.Rating,
 			}
 		}
 		restaurants = append(restaurants, restaurant)
@@ -183,8 +192,6 @@ func (rc *RestaurantsClient) enrichRestaurantDetails(restaurantId string) (Resta
 	}
 	restaurant.OpenHours = periodsToTimeRanges(place.CurrentOpeningHours.Periods, place.UtcOffsetMinutes)
 	restaurant.Rating = &place.Rating
-	restaurant.CreatedAt = time.Now()
-	restaurant.UpdatedAt = time.Now()
 	restaurant.EnrichmentStatus = EnrichmentStatusQueued
 
 	// Proceed with upsert and set enrichment_status to "queued"
@@ -234,6 +241,18 @@ func (rc *RestaurantsClient) enrichRestaurantDetails(restaurantId string) (Resta
 	return restaurant, nil
 }
 
+func (rc *RestaurantsClient) BatchEnrichRestaurantDetails(restaurantIds []string) ([]Restaurant, error) {
+	restaurants := []Restaurant{}
+	for _, restaurantId := range restaurantIds {
+		restaurant, err := rc.enrichRestaurantDetails(restaurantId)
+		if err != nil {
+			return []Restaurant{}, err
+		}
+		restaurants = append(restaurants, restaurant)
+	}
+	return restaurants, nil
+}
+
 func (rc *RestaurantsClient) UpdateRestaurantNutritionInfo(eocr EndOfCallReportMessage) error {
 	nutritionInfo := make(map[string]interface{})
 	for _, result := range eocr.Message.Artifact.StructuredOutputs {
@@ -265,16 +284,4 @@ func (rc *RestaurantsClient) UpdateRestaurantNutritionInfo(eocr EndOfCallReportM
 	}
 	slog.Info("[restaurants.UpdateRestaurantNutritionInfo] Updated restaurant nutrition info", "places_id", placesId)
 	return nil
-}
-
-func (rc *RestaurantsClient) BatchEnrichRestaurantDetails(restaurantIds []string) ([]Restaurant, error) {
-	restaurants := []Restaurant{}
-	for _, restaurantId := range restaurantIds {
-		restaurant, err := rc.enrichRestaurantDetails(restaurantId)
-		if err != nil {
-			return []Restaurant{}, err
-		}
-		restaurants = append(restaurants, restaurant)
-	}
-	return restaurants, nil
 }

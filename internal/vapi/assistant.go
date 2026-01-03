@@ -1,11 +1,11 @@
 package vapi
 
 import (
-	"eatsavvy/pkg/places"
+	"eatsavvy/internal/places"
 	"os"
 )
 
-func GetAssistantRequestBody(restaurant places.Restaurant) map[string]interface{} {
+func getAssistantRequestBody(restaurant places.Restaurant) map[string]interface{} {
 	return map[string]interface{}{
 		"phoneNumberId": os.Getenv("VAPI_PHONE_NUMBER_ID"),
 		"customer": map[string]string{

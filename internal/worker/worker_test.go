@@ -1,7 +1,7 @@
 package worker
 
 import (
-	"eatsavvy/pkg/places"
+	"eatsavvy/internal/places"
 	"testing"
 	"time"
 )

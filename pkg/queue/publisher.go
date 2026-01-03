@@ -5,7 +5,7 @@ import (
 	"log/slog"
 	"time"
 
-	"eatsavvy/pkg/utils"
+	"eatsavvy/pkg/encoder"
 
 	amqp "github.com/rabbitmq/amqp091-go"
 )
@@ -29,7 +29,7 @@ func (p *Publisher) PublishMessage(body interface{}) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	bodyBytes, err := utils.ToBytes(body)
+	bodyBytes, err := encoder.ToBytes(body)
 	slog.Info("[queue.Publisher.PublishMessage] Publishing message", "body", body)
 	if err != nil {
 		slog.Error("[queue.Publisher.PublishMessage] Failed to convert body to bytes", "error", err)
@@ -56,7 +56,7 @@ func (p *Publisher) PublishDelayedMessage(body interface{}, delay time.Duration)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	bodyBytes, err := utils.ToBytes(body)
+	bodyBytes, err := encoder.ToBytes(body)
 	if err != nil {
 		slog.Error("[queue.Publisher.PublishDelayedMessage] Failed to convert body to bytes", "error", err)
 		return err

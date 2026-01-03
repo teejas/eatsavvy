@@ -2,11 +2,11 @@ package worker
 
 import (
 	"context"
+	"eatsavvy/internal/places"
+	"eatsavvy/internal/vapi"
 	"eatsavvy/pkg/db"
-	"eatsavvy/pkg/places"
+	"eatsavvy/pkg/encoder"
 	"eatsavvy/pkg/queue"
-	"eatsavvy/pkg/utils"
-	"eatsavvy/pkg/vapi"
 
 	"log/slog"
 	"time"
@@ -81,7 +81,7 @@ func (w *Worker) Start() {
 
 func (w *Worker) processMessage(msg amqp091.Delivery) (places.Restaurant, error) {
 	var restaurant places.Restaurant
-	err := utils.FromBytes(msg.Body, &restaurant)
+	err := encoder.FromBytes(msg.Body, &restaurant)
 	if err != nil {
 		slog.Error("[worker.processMessage] Failed to unmarshal message", "error", err)
 		return places.Restaurant{}, err
