@@ -1,0 +1,39 @@
+---
+# Worker Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: worker
+  namespace: eatsavvy
+  labels:
+    app: worker
+    component: backend
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: worker
+  template:
+    metadata:
+      labels:
+        app: worker
+        component: backend
+    spec:
+      imagePullSecrets:
+        - name: ocir-secret
+      containers:
+        - name: worker
+          image: sjc.ocir.io/axifwvgpnbqk/eatsavvy/worker:latest
+          env:
+            - name: RABBITMQ_HOST
+              value: "rabbitmq.eatsavvy.svc.cluster.local"
+            - name: RABBITMQ_PORT
+              value: "5672"
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "256Mi"
+              cpu: "500m"
+

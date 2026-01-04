@@ -43,3 +43,4 @@ We really only need one publisher (the api) and one consumer (the worker) though
 - [ ] move openNow logic from UI to API (currently duplicated bleh)
 - [ ] dynamically generate structured outputs for assistant (using structuredMultiData)
 - [ ] add Yelp support (for reviews and supplementing missing phone numbers)
+- [ ] use Kustomize for generating k8s manifests

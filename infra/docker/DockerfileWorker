@@ -22,7 +22,8 @@ WORKDIR /app
 COPY --from=builder /app/bin/worker ./worker
 
 # Copy the .env file
-COPY backend/.env.docker ./.env
+COPY backend/.env ./.env
+ENV RABBITMQ_HOST=eatsavvy-rabbitmq
 
 # Run the Worker
 ENTRYPOINT ["./worker"]

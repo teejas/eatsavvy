@@ -1,5 +1,6 @@
 .PHONY: build-% build-rabbitmq run-% run-rabbitmq stop-rabbitmq deploy-frontend start-cf-tunnel clean build run \
-	docker-build-api docker-build-worker docker-build docker-run-api docker-run-worker \
+	docker-build-api docker-build-worker docker-build docker-run-api docker-run-worker docker-run-rabbitmq \
+	docker-stop-api docker-stop-worker docker-stop-rabbitmq docker-stop docker-network \
 	docker-push-api docker-push-worker docker-push docker-network
 
 DOCKER_NETWORK = eatsavvy-network
@@ -8,7 +9,7 @@ build-%:
 	cd backend && go build -o bin/$* cmd/$*/main.go
 
 build-rabbitmq:
-	docker build -t rmq-delayed-exchange -f infra/DockerfileRabbitMQ .
+	docker build -t rmq-delayed-exchange -f infra/docker/DockerfileRabbitMQ .
 
 build-frontend:
 	cd frontend && npm run build
@@ -17,7 +18,7 @@ run-%:
 	cd backend && go run cmd/$*/main.go
 
 run-rabbitmq: docker-network
-	docker run --detach --name rabbitmq --network ${DOCKER_NETWORK} -p 5672:5672 -p 15672:15672 rmq-delayed-exchange
+	docker run --detach --name eatsavvy-rabbitmq --network ${DOCKER_NETWORK} -p 5672:5672 -p 15672:15672 rmq-delayed-exchange
 
 run-frontend:
 	cd frontend && npm run dev
@@ -32,8 +33,8 @@ deploy-frontend: build-frontend
 	@echo "Frontend deployed to Cloudflare Pages"
 
 stop-rabbitmq:
-	docker stop rabbitmq
-	docker rm rabbitmq
+	docker stop eatsavvy-rabbitmq
+	docker rm eatsavvy-rabbitmq
 
 build: build-api build-worker build-rabbitmq build-frontend
 
@@ -52,14 +53,32 @@ docker-build-api:
 docker-build-worker:
 	docker build -t eatsavvy-worker -f infra/docker/DockerfileWorker .
 
-docker-build: docker-build-api docker-build-worker
+docker-build-rabbitmq: build-rabbitmq
+
+docker-build: docker-build-api docker-build-worker docker-build-rabbitmq
 
 # Docker run targets
 docker-run-api: docker-network
-	docker run --name eatsavvy-api --network ${DOCKER_NETWORK} -p 8080:8080 eatsavvy-api
+	docker run --detach --name eatsavvy-api --network ${DOCKER_NETWORK} -p 8080:8080 eatsavvy-api
 
 docker-run-worker: docker-network
-	docker run --name eatsavvy-worker --network ${DOCKER_NETWORK} eatsavvy-worker
+	docker run --detach --name eatsavvy-worker --network ${DOCKER_NETWORK} eatsavvy-worker
+
+docker-run-rabbitmq: run-rabbitmq
+
+docker-stop-rabbitmq: stop-rabbitmq
+
+docker-stop-api:
+	docker stop eatsavvy-api
+	docker rm eatsavvy-api
+
+docker-stop-worker:
+	docker stop eatsavvy-worker
+	docker rm eatsavvy-worker
+
+docker-run: docker-run-api docker-run-worker docker-run-rabbitmq
+
+docker-stop: docker-stop-api docker-stop-worker docker-stop-rabbitmq
 
 # Docker network
 docker-network:
@@ -71,11 +90,15 @@ docker-network:
 OCIR_REPO ?= eatsavvy
 
 docker-push-api: docker-build-api
-	docker tag eatsavvy-api ${OCIR_REGION}/${OCIR_NAMESPACE}/${OCIR_REPO}/api:latest
-	docker push ${OCIR_REGION}/${OCIR_NAMESPACE}/${OCIR_REPO}/api:latest
+	docker tag eatsavvy-api ${OCIR_REGION}/${OCIR_NAMESPACE}/${OCIR_REPO}/api:v1.0.0
+	docker push ${OCIR_REGION}/${OCIR_NAMESPACE}/${OCIR_REPO}/api:v1.0.0
 
 docker-push-worker: docker-build-worker
 	docker tag eatsavvy-worker ${OCIR_REGION}/${OCIR_NAMESPACE}/${OCIR_REPO}/worker:latest
 	docker push ${OCIR_REGION}/${OCIR_NAMESPACE}/${OCIR_REPO}/worker:latest
 
-docker-push: docker-push-api docker-push-worker
+docker-push-rabbitmq: docker-build-rabbitmq
+	docker tag rmq-delayed-exchange ${OCIR_REGION}/${OCIR_NAMESPACE}/${OCIR_REPO}/rabbitmq:latest
+	docker push ${OCIR_REGION}/${OCIR_NAMESPACE}/${OCIR_REPO}/rabbitmq:latest
+
+docker-push: docker-push-api docker-push-worker docker-push-rabbitmq

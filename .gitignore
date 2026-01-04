@@ -1,6 +1,10 @@
 **/.env*
+**/01-secrets.yaml
 **/bin
 **/dist
 **/node_modules
 **/public
 **/.DS_Store
+**/terraform.tfvars
+**/terraform.tfstate*
+**/.terraform*
