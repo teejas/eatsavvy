@@ -130,58 +130,131 @@ deploy() {
 # Main
 # -----------------------------------------------------------------------------
 main() {
-    local action="${1:-check}"
+    local action=""
+    local manifest_file=""
+    
+    # Parse arguments
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            -f)
+                manifest_file="$2"
+                shift 2
+                ;;
+            *)
+                if [[ -z "$action" ]]; then
+                    action="$1"
+                fi
+                shift
+                ;;
+        esac
+    done
+    
+    action="${action:-check}"
     
     case "$action" in
         apply|deploy)
             safety_check
-            check_secrets
             
-            confirm "DEPLOY resources to cluster" "$CURRENT_CONTEXT"
-            
-            echo "=============================================="
-            echo "DEPLOYING EATSAVVY TO KUBERNETES"
-            echo "=============================================="
-            echo -e "Context: ${YELLOW}${CURRENT_CONTEXT}${NC}"
-            echo ""
-            
-            # Apply in order (dependencies first)
-            deploy "$SCRIPT_DIR/00-namespace.yaml"
-            deploy "$SCRIPT_DIR/01-secrets.yaml"
-            deploy "$SCRIPT_DIR/02-rabbitmq.yaml"
-            deploy "$SCRIPT_DIR/03-api.yaml"
-            deploy "$SCRIPT_DIR/04-worker.yaml"
-            deploy "$SCRIPT_DIR/05-cloudflared.yaml"
-            
-            echo ""
-            echo -e "${GREEN}=============================================="
-            echo "DEPLOYMENT COMPLETE!"
-            echo "==============================================${NC}"
-            echo ""
-            echo "Check status:"
-            echo "  KUBECONFIG=$KUBECONFIG_FILE kubectl get pods -n $NAMESPACE"
+            # Single manifest mode
+            if [[ -n "$manifest_file" ]]; then
+                # Resolve path (support relative or absolute)
+                if [[ ! "$manifest_file" = /* ]]; then
+                    manifest_file="$SCRIPT_DIR/$manifest_file"
+                fi
+                
+                if [[ ! -f "$manifest_file" ]]; then
+                    echo -e "${RED}ERROR: Manifest file not found: $manifest_file${NC}"
+                    exit 1
+                fi
+                
+                confirm "DEPLOY $manifest_file to cluster" "$CURRENT_CONTEXT"
+                
+                echo "=============================================="
+                echo "DEPLOYING SINGLE MANIFEST: $manifest_file"
+                echo "=============================================="
+                echo -e "Context: ${YELLOW}${CURRENT_CONTEXT}${NC}"
+                echo ""
+                
+                deploy "$manifest_file"
+                
+                echo ""
+                echo -e "${GREEN}Deployment complete!${NC}"
+            else
+                # Full deploy mode
+                check_secrets
+                
+                confirm "DEPLOY resources to cluster" "$CURRENT_CONTEXT"
+                
+                echo "=============================================="
+                echo "DEPLOYING EATSAVVY TO KUBERNETES"
+                echo "=============================================="
+                echo -e "Context: ${YELLOW}${CURRENT_CONTEXT}${NC}"
+                echo ""
+                
+                # Apply in order (dependencies first)
+                deploy "$SCRIPT_DIR/00-namespace.yaml"
+                deploy "$SCRIPT_DIR/01-secrets.yaml"
+                deploy "$SCRIPT_DIR/02-rabbitmq.yaml"
+                deploy "$SCRIPT_DIR/03-api.yaml"
+                deploy "$SCRIPT_DIR/04-worker.yaml"
+                deploy "$SCRIPT_DIR/05-cloudflared.yaml"
+                
+                echo ""
+                echo -e "${GREEN}=============================================="
+                echo "DEPLOYMENT COMPLETE!"
+                echo "==============================================${NC}"
+                echo ""
+                echo "Check status:"
+                echo "  KUBECONFIG=$KUBECONFIG_FILE kubectl get pods -n $NAMESPACE"
+            fi
             ;;
             
         delete|destroy)
             safety_check
             
-            confirm "DELETE all resources from cluster" "$CURRENT_CONTEXT"
-            
-            echo "=============================================="
-            echo "DELETING EATSAVVY FROM KUBERNETES"
-            echo "=============================================="
-            echo -e "Context: ${YELLOW}${CURRENT_CONTEXT}${NC}"
-            echo ""
-            
-            # Delete in reverse order
-            KUBECONFIG="$KUBECONFIG_FILE" kubectl delete -f "$SCRIPT_DIR/05-cloudflared.yaml" --ignore-not-found
-            KUBECONFIG="$KUBECONFIG_FILE" kubectl delete -f "$SCRIPT_DIR/04-worker.yaml" --ignore-not-found
-            KUBECONFIG="$KUBECONFIG_FILE" kubectl delete -f "$SCRIPT_DIR/03-api.yaml" --ignore-not-found
-            KUBECONFIG="$KUBECONFIG_FILE" kubectl delete -f "$SCRIPT_DIR/02-rabbitmq.yaml" --ignore-not-found
-            KUBECONFIG="$KUBECONFIG_FILE" kubectl delete -f "$SCRIPT_DIR/01-secrets.yaml" --ignore-not-found
-            KUBECONFIG="$KUBECONFIG_FILE" kubectl delete -f "$SCRIPT_DIR/00-namespace.yaml" --ignore-not-found
-            
-            echo -e "${GREEN}Deletion complete!${NC}"
+            # Single manifest mode
+            if [[ -n "$manifest_file" ]]; then
+                # Resolve path (support relative or absolute)
+                if [[ ! "$manifest_file" = /* ]]; then
+                    manifest_file="$SCRIPT_DIR/$manifest_file"
+                fi
+                
+                if [[ ! -f "$manifest_file" ]]; then
+                    echo -e "${RED}ERROR: Manifest file not found: $manifest_file${NC}"
+                    exit 1
+                fi
+                
+                confirm "DELETE $manifest_file from cluster" "$CURRENT_CONTEXT"
+                
+                echo "=============================================="
+                echo "DELETING SINGLE MANIFEST: $manifest_file"
+                echo "=============================================="
+                echo -e "Context: ${YELLOW}${CURRENT_CONTEXT}${NC}"
+                echo ""
+                
+                KUBECONFIG="$KUBECONFIG_FILE" kubectl delete -f "$manifest_file" --ignore-not-found
+                
+                echo -e "${GREEN}Deletion complete!${NC}"
+            else
+                # Full delete mode
+                confirm "DELETE all resources from cluster" "$CURRENT_CONTEXT"
+                
+                echo "=============================================="
+                echo "DELETING EATSAVVY FROM KUBERNETES"
+                echo "=============================================="
+                echo -e "Context: ${YELLOW}${CURRENT_CONTEXT}${NC}"
+                echo ""
+                
+                # Delete in reverse order
+                KUBECONFIG="$KUBECONFIG_FILE" kubectl delete -f "$SCRIPT_DIR/05-cloudflared.yaml" --ignore-not-found
+                KUBECONFIG="$KUBECONFIG_FILE" kubectl delete -f "$SCRIPT_DIR/04-worker.yaml" --ignore-not-found
+                KUBECONFIG="$KUBECONFIG_FILE" kubectl delete -f "$SCRIPT_DIR/03-api.yaml" --ignore-not-found
+                KUBECONFIG="$KUBECONFIG_FILE" kubectl delete -f "$SCRIPT_DIR/02-rabbitmq.yaml" --ignore-not-found
+                KUBECONFIG="$KUBECONFIG_FILE" kubectl delete -f "$SCRIPT_DIR/01-secrets.yaml" --ignore-not-found
+                KUBECONFIG="$KUBECONFIG_FILE" kubectl delete -f "$SCRIPT_DIR/00-namespace.yaml" --ignore-not-found
+                
+                echo -e "${GREEN}Deletion complete!${NC}"
+            fi
             ;;
             
         status)
@@ -192,7 +265,7 @@ main() {
             ;;
             
         logs)
-            local component="${2:-api}"
+            local component="${manifest_file:-api}"  # Reuse -f for component name
             safety_check
             echo -e "Context: ${YELLOW}${CURRENT_CONTEXT}${NC}"
             echo ""
@@ -206,14 +279,24 @@ main() {
             ;;
             
         *)
-            echo "Usage: $0 {apply|delete|status|logs [component]|check}"
+            echo "Usage: $0 {apply|delete|status|logs|check} [-f <file>]"
             echo ""
             echo "Commands:"
-            echo "  apply   - Deploy all manifests"
-            echo "  delete  - Delete all resources"
+            echo "  apply   - Deploy all manifests (or single with -f)"
+            echo "  delete  - Delete all resources (or single with -f)"
             echo "  status  - Show deployment status"
-            echo "  logs    - Tail logs (default: api, or specify: rabbitmq, worker, cloudflared)"
+            echo "  logs    - Tail logs (default: api, use -f to specify: rabbitmq, worker, cloudflared)"
             echo "  check   - Run safety check only (default)"
+            echo ""
+            echo "Options:"
+            echo "  -f <file>  - For apply: deploy single manifest (e.g., -f 03-api.yaml)"
+            echo "               For logs: specify component (e.g., -f worker)"
+            echo ""
+            echo "Examples:"
+            echo "  $0 apply                    # Deploy all manifests"
+            echo "  $0 apply -f 03-api.yaml     # Deploy only the API manifest"
+            echo "  $0 delete -f 03-api.yaml    # Delete only the API resources"
+            echo "  $0 logs -f worker           # Tail worker logs"
             echo ""
             echo "Environment:"
             echo "  KUBECONFIG - Path to kubeconfig (default: ~/.kube/eatsavvy.config)"

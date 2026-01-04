@@ -6,6 +6,7 @@
 DOCKER_NETWORK = eatsavvy-network
 PLATFORMS = linux/amd64,linux/arm64
 
+# --------------------------------BUILD TARGETS--------------------------------
 build-%:
 	cd backend && go build -o bin/$* cmd/$*/main.go
 
@@ -15,34 +16,7 @@ build-rabbitmq:
 build-frontend:
 	cd frontend && npm run build
 
-run-%:
-	cd backend && go run cmd/$*/main.go
-
-run-rabbitmq: docker-network
-	docker run --detach --name eatsavvy-rabbitmq --network ${DOCKER_NETWORK} -p 5672:5672 -p 15672:15672 rmq-delayed-exchange
-
-run-frontend:
-	cd frontend && npm run dev
-
-deploy-frontend: build-frontend
-	@echo "Deploying UI to Cloudflare Pages..."
-	@if ! command -v wrangler &> /dev/null; then \
-			echo "Installing Wrangler CLI..."; \
-			npm install -g wrangler; \
-	fi
-	@cd frontend && wrangler pages deploy dist/ --project-name=eatsavvy-frontend
-	@echo "Frontend deployed to Cloudflare Pages"
-
-stop-rabbitmq:
-	docker stop eatsavvy-rabbitmq
-	docker rm eatsavvy-rabbitmq
-
 build: build-api build-worker build-rabbitmq build-frontend
-
-run: run-api run-worker run-rabbitmq run-frontend
-
-start-cf-tunnel:
-	cloudflared tunnel run --token ${CLOUDFLARED_TOKEN}
 
 clean:
 	rm -rf backend/bin/* frontend/dist/*
@@ -56,7 +30,26 @@ docker-build-worker:
 
 docker-build-rabbitmq: build-rabbitmq
 
-docker-build: docker-build-api docker-build-worker docker-build-rabbitmq
+docker-build: docker-build-api docker-build-worker docker-build-rabbitmq	
+
+# --------------------------------LOCAL RUN TARGETS--------------------------------
+run-%:
+	cd backend && go run cmd/$*/main.go
+
+run-rabbitmq: docker-network
+	docker run --detach --name eatsavvy-rabbitmq --network ${DOCKER_NETWORK} -p 5672:5672 -p 15672:15672 rmq-delayed-exchange
+
+run-frontend:
+	cd frontend && npm run dev
+
+stop-rabbitmq:
+	docker stop eatsavvy-rabbitmq
+	docker rm eatsavvy-rabbitmq
+
+run: run-api run-worker run-rabbitmq run-frontend
+
+start-cf-tunnel:
+	cloudflared tunnel run --token ${CLOUDFLARED_TOKEN}
 
 # Docker run targets
 docker-run-api: docker-network
@@ -77,6 +70,13 @@ docker-stop-worker:
 	docker stop eatsavvy-worker
 	docker rm eatsavvy-worker
 
+# Docker network
+docker-network:
+	@docker network inspect ${DOCKER_NETWORK} >/dev/null 2>&1 || docker network create ${DOCKER_NETWORK}
+
+docker-remove-network:
+	docker network rm ${DOCKER_NETWORK}
+
 docker-run:
 	$(MAKE) docker-run-rabbitmq
 	@echo "Waiting 10s for RabbitMQ to start..."
@@ -86,30 +86,55 @@ docker-run:
 
 docker-stop: docker-stop-api docker-stop-worker docker-stop-rabbitmq docker-remove-network
 
-# Docker network
-docker-network:
-	@docker network inspect ${DOCKER_NETWORK} >/dev/null 2>&1 || docker network create ${DOCKER_NETWORK}
 
-docker-remove-network:
-	docker network rm ${DOCKER_NETWORK}
-
+# --------------------------------DEPLOYMENT TARGETS--------------------------------
 # OCIR push targets
 # Required env vars: OCIR_REGION (e.g., iad.ocir.io), OCIR_NAMESPACE (tenancy namespace)
 # Optional: OCIR_REPO (defaults to eatsavvy)
 OCIR_REPO ?= eatsavvy
 OCIR_REGION ?= sjc.ocir.io
 OCIR_NAMESPACE ?= axifwvgpnbqk
+TIMESTAMP := $(shell date +%Y%m%d-%H%M%S)
 
-docker-push-api: docker-build-api
-	docker tag eatsavvy-api ${OCIR_REGION}/${OCIR_NAMESPACE}/${OCIR_REPO}/api:latest
-	docker push ${OCIR_REGION}/${OCIR_NAMESPACE}/${OCIR_REPO}/api:latest
+docker-push-api:
+	docker buildx build --platform ${PLATFORMS} \
+		-t ${OCIR_REGION}/${OCIR_NAMESPACE}/${OCIR_REPO}/api:latest \
+		-t ${OCIR_REGION}/${OCIR_NAMESPACE}/${OCIR_REPO}/api:${TIMESTAMP} \
+		-f infra/docker/DockerfileAPI --push .
 
-docker-push-worker: docker-build-worker
-	docker tag eatsavvy-worker ${OCIR_REGION}/${OCIR_NAMESPACE}/${OCIR_REPO}/worker:latest
-	docker push ${OCIR_REGION}/${OCIR_NAMESPACE}/${OCIR_REPO}/worker:latest
+docker-push-worker:
+	docker buildx build --platform ${PLATFORMS} \
+		-t ${OCIR_REGION}/${OCIR_NAMESPACE}/${OCIR_REPO}/worker:latest \
+		-t ${OCIR_REGION}/${OCIR_NAMESPACE}/${OCIR_REPO}/worker:${TIMESTAMP} \
+		-f infra/docker/DockerfileWorker --push .
 
-docker-push-rabbitmq: docker-build-rabbitmq
-	docker tag rmq-delayed-exchange ${OCIR_REGION}/${OCIR_NAMESPACE}/${OCIR_REPO}/rabbitmq:latest
-	docker push ${OCIR_REGION}/${OCIR_NAMESPACE}/${OCIR_REPO}/rabbitmq:latest
+docker-push-rabbitmq:
+	docker buildx build --platform ${PLATFORMS} \
+		-t ${OCIR_REGION}/${OCIR_NAMESPACE}/${OCIR_REPO}/rabbitmq:latest \
+		-t ${OCIR_REGION}/${OCIR_NAMESPACE}/${OCIR_REPO}/rabbitmq:${TIMESTAMP} \
+		-f infra/docker/DockerfileRabbitMQ --push .
 
 docker-push: docker-push-api docker-push-worker docker-push-rabbitmq
+
+deploy-rabbitmq: docker-push-rabbitmq
+	cd infra/k8s && ./deploy.sh apply -f 02-rabbitmq.yaml
+	kubectl rollout restart deployment rabbitmq -n eatsavvy
+
+deploy-api: docker-push-api
+	cd infra/k8s && ./deploy.sh apply -f 03-api.yaml
+	kubectl rollout restart deployment api -n eatsavvy
+
+deploy-worker: docker-push-worker
+	cd infra/k8s && ./deploy.sh apply -f 04-worker.yaml
+	kubectl rollout restart deployment worker -n eatsavvy
+
+deploy-backend: deploy-rabbitmq deploy-api deploy-worker
+
+deploy-frontend: build-frontend
+	@echo "Deploying UI to Cloudflare Pages..."
+	@if ! command -v wrangler &> /dev/null; then \
+			echo "Installing Wrangler CLI..."; \
+			npm install -g wrangler; \
+	fi
+	@cd frontend && wrangler pages deploy dist/ --project-name=eatsavvy-frontend
+	@echo "Frontend deployed to Cloudflare Pages"

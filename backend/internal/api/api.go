@@ -23,7 +23,11 @@ func authMiddleware() gin.HandlerFunc {
 }
 
 func StartServer(port string) {
-	r := gin.Default()
+	r := gin.New()
+	r.Use(gin.Recovery())
+	r.Use(gin.LoggerWithConfig(gin.LoggerConfig{
+		SkipPaths: []string{"/health"},
+	}))
 	r.Use(cors.New(cors.Config{
 		AllowOrigins:     []string{"https://eatsavvy.org", "http://localhost:5173"},
 		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},

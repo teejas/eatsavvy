@@ -32,7 +32,7 @@ cp 01-secrets.yaml.example 01-secrets.yaml
 # Edit 01-secrets.yaml with your credentials
 
 # 4. Deploy
-./deploy.sh apply
+OCI_CLI_PROFILE={YOUR_PROFILE} ./deploy.sh apply
 ```
 
 ## Files
