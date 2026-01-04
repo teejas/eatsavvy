@@ -1,6 +1,6 @@
 import { useMemo, useState, useEffect } from 'react';
-import { SearchBar } from '../components/SearchBar';
-import { RestaurantRow, Restaurant, TimeRange } from '../components/RestaurantRow';
+import { SearchBar } from './SearchBar';
+import { RestaurantRow, Restaurant, TimeRange } from './RestaurantRow';
 import { UtensilsCrossed, Sparkles, Loader2, AlertCircle } from 'lucide-react';
 
 const API_BASE_URL = import.meta.env.VITE_EATSAVVY_API_URL || 'https://api.eatsavvy.org';

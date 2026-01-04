@@ -2,13 +2,23 @@
 
 Uses Google Places API, RabbitMQ, and Vapi to enrich restaurant details with nutritional and dietary information.
 
-## API
+## Backend
+
+### API
 
 Accepts search query to find restaurants to enrich. Returns restaurant info from the database. Accepts and processes end of call report from Vapi to enrich restaurant nutritional and dietary info.
 
-## Worker
+### Worker
 
 Uses Vapi to call restaurants and collect information from restaurants.
+
+## Frontend
+
+UI built using Magic Patterns + Cursor
+
+## Infra
+
+Terraform code to deploy OCI cluster and Cloudflared tunnel
 
 # Notes
 
