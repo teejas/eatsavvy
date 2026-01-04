@@ -4,12 +4,13 @@
 	docker-push-api docker-push-worker docker-push docker-network
 
 DOCKER_NETWORK = eatsavvy-network
+PLATFORMS = linux/amd64,linux/arm64
 
 build-%:
 	cd backend && go build -o bin/$* cmd/$*/main.go
 
 build-rabbitmq:
-	docker build -t rmq-delayed-exchange -f infra/docker/DockerfileRabbitMQ .
+	docker buildx build --platform ${PLATFORMS} -t rmq-delayed-exchange -f infra/docker/DockerfileRabbitMQ .
 
 build-frontend:
 	cd frontend && npm run build
@@ -48,10 +49,10 @@ clean:
 
 # Docker build targets
 docker-build-api:
-	docker build -t eatsavvy-api -f infra/docker/DockerfileAPI .
+	docker buildx build --platform ${PLATFORMS} -t eatsavvy-api -f infra/docker/DockerfileAPI .
 
 docker-build-worker:
-	docker build -t eatsavvy-worker -f infra/docker/DockerfileWorker .
+	docker buildx build --platform ${PLATFORMS} -t eatsavvy-worker -f infra/docker/DockerfileWorker .
 
 docker-build-rabbitmq: build-rabbitmq
 
@@ -76,22 +77,32 @@ docker-stop-worker:
 	docker stop eatsavvy-worker
 	docker rm eatsavvy-worker
 
-docker-run: docker-run-api docker-run-worker docker-run-rabbitmq
+docker-run:
+	$(MAKE) docker-run-rabbitmq
+	@echo "Waiting 10s for RabbitMQ to start..."
+	sleep 10
+	$(MAKE) docker-run-api
+	$(MAKE) docker-run-worker
 
-docker-stop: docker-stop-api docker-stop-worker docker-stop-rabbitmq
+docker-stop: docker-stop-api docker-stop-worker docker-stop-rabbitmq docker-remove-network
 
 # Docker network
 docker-network:
 	@docker network inspect ${DOCKER_NETWORK} >/dev/null 2>&1 || docker network create ${DOCKER_NETWORK}
 
+docker-remove-network:
+	docker network rm ${DOCKER_NETWORK}
+
 # OCIR push targets
 # Required env vars: OCIR_REGION (e.g., iad.ocir.io), OCIR_NAMESPACE (tenancy namespace)
 # Optional: OCIR_REPO (defaults to eatsavvy)
 OCIR_REPO ?= eatsavvy
+OCIR_REGION ?= sjc.ocir.io
+OCIR_NAMESPACE ?= axifwvgpnbqk
 
 docker-push-api: docker-build-api
-	docker tag eatsavvy-api ${OCIR_REGION}/${OCIR_NAMESPACE}/${OCIR_REPO}/api:v1.0.0
-	docker push ${OCIR_REGION}/${OCIR_NAMESPACE}/${OCIR_REPO}/api:v1.0.0
+	docker tag eatsavvy-api ${OCIR_REGION}/${OCIR_NAMESPACE}/${OCIR_REPO}/api:latest
+	docker push ${OCIR_REGION}/${OCIR_NAMESPACE}/${OCIR_REPO}/api:latest
 
 docker-push-worker: docker-build-worker
 	docker tag eatsavvy-worker ${OCIR_REGION}/${OCIR_NAMESPACE}/${OCIR_REPO}/worker:latest

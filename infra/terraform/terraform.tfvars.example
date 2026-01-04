@@ -1,0 +1,42 @@
+# -----------------------------------------------------------------------------
+# OCI Authentication
+# Get these values from OCI Console -> User Settings -> API Keys
+# -----------------------------------------------------------------------------
+
+tenancy_ocid     = "ocid1.tenancy.oc1..xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+user_ocid        = "ocid1.user.oc1..xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+fingerprint      = "aa:bb:cc:dd:ee:ff:00:11:22:33:44:55:66:77:88:99"
+private_key_path = "~/.oci/oci_api_key.pem"
+region           = "us-sanjose-1"
+
+# -----------------------------------------------------------------------------
+# Compartment
+# The compartment where all resources will be created
+# -----------------------------------------------------------------------------
+
+compartment_id = "ocid1.compartment.oc1..xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+
+# -----------------------------------------------------------------------------
+# Network Configuration
+# -----------------------------------------------------------------------------
+
+# vcn_cidr          = "10.0.0.0/16"
+# vcn_dns_label     = "eatsavvyvcn"
+# nodes_subnet_cidr = "10.0.20.0/24"
+
+# -----------------------------------------------------------------------------
+# OKE Cluster Configuration
+# -----------------------------------------------------------------------------
+
+cluster_name = "eatsavvy-cluster"
+# k8s_version  = "v1.34.1"
+
+# Get availability domain from: oci iam availability-domain list
+availability_domain = "xxxx:US-SANJOSE-1-AD-1"
+
+# Node pool configuration
+node_shape     = "VM.Standard.E5.Flex"
+node_ocpus     = 1
+node_memory_gb = 12
+node_count     = 2
+

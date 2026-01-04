@@ -1,5 +1,9 @@
 # Stage 1: Builder
-FROM golang:1.24-alpine AS builder
+FROM --platform=$BUILDPLATFORM golang:1.24-alpine AS builder
+
+# These are automatically set by docker buildx
+ARG TARGETOS
+ARG TARGETARCH
 
 WORKDIR /app
 
@@ -10,8 +14,8 @@ RUN go mod download
 # Copy the rest of the backend source code
 COPY backend/ ./
 
-# Build the Worker binary
-RUN go build -o bin/worker cmd/worker/main.go
+# Build the Worker binary for the target platform
+RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -o bin/worker cmd/worker/main.go
 
 # Stage 2: Runtime
 FROM alpine:latest

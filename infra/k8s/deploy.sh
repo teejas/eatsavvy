@@ -130,7 +130,7 @@ deploy() {
 # Main
 # -----------------------------------------------------------------------------
 main() {
-    local action="${1:-apply}"
+    local action="${1:-check}"
     
     case "$action" in
         apply|deploy)
@@ -209,11 +209,11 @@ main() {
             echo "Usage: $0 {apply|delete|status|logs [component]|check}"
             echo ""
             echo "Commands:"
-            echo "  apply   - Deploy all manifests (default)"
+            echo "  apply   - Deploy all manifests"
             echo "  delete  - Delete all resources"
             echo "  status  - Show deployment status"
             echo "  logs    - Tail logs (default: api, or specify: rabbitmq, worker, cloudflared)"
-            echo "  check   - Run safety check only"
+            echo "  check   - Run safety check only (default)"
             echo ""
             echo "Environment:"
             echo "  KUBECONFIG - Path to kubeconfig (default: ~/.kube/eatsavvy.config)"

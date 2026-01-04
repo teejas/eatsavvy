@@ -112,6 +112,19 @@ resource "oci_core_security_list" "nodes" {
       max = 32767
     }
   }
+
+  # Allow Kubernetes API access (port 6443)
+  ingress_security_rules {
+    source      = "0.0.0.0/0"
+    protocol    = "6" # TCP
+    source_type = "CIDR_BLOCK"
+    stateless   = false
+
+    tcp_options {
+      min = 6443
+      max = 6443
+    }
+  }
 }
 
 # -----------------------------------------------------------------------------
