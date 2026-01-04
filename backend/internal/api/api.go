@@ -54,6 +54,30 @@ func StartServer(port string) {
 		c.JSON(netHttp.StatusOK, restaurant)
 	})
 
+	authorized.PATCH("/restaurant/:id", func(c *gin.Context) {
+		id := c.Param("id")
+		var request struct {
+			PhoneNumber string `json:"phoneNumber"`
+		}
+		if err := c.ShouldBindJSON(&request); err != nil {
+			c.JSON(netHttp.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+
+		formattedPhone, err := formatPhoneNumber(request.PhoneNumber)
+		if err != nil {
+			c.JSON(netHttp.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+
+		restaurant, err := restaurantClient.UpdateRestaurantPhoneNumber(id, formattedPhone)
+		if err != nil {
+			c.JSON(netHttp.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+		c.JSON(netHttp.StatusOK, restaurant)
+	})
+
 	authorized.GET("/restaurant", func(c *gin.Context) {
 		restaurants, err := restaurantClient.GetAllRestaurants()
 		if err != nil {

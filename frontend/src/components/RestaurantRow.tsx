@@ -105,13 +105,44 @@ interface RestaurantRowProps {
   restaurant: Restaurant;
   isSelected: boolean;
   onToggleSelect: (id: string) => void;
+  onUpdatePhone: (id: string, phoneNumber: string) => Promise<void>;
 }
 export function RestaurantRow({
   restaurant,
   isSelected,
-  onToggleSelect
+  onToggleSelect,
+  onUpdatePhone
 }: RestaurantRowProps) {
   const [expandedSection, setExpandedSection] = useState<'oil' | 'accommodations' | 'vegetables' | 'hours' | null>(null);
+  const [isEditingPhone, setIsEditingPhone] = useState(false);
+  const [editedPhone, setEditedPhone] = useState(restaurant.phone);
+  const [isSavingPhone, setIsSavingPhone] = useState(false);
+
+  // Check if phone is valid (not 'N/A' or empty)
+  const hasValidPhone = restaurant.phone && restaurant.phone !== 'N/A' && restaurant.phone.trim() !== '';
+
+  const handlePhoneKeyDown = async (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      if (editedPhone.trim() && editedPhone !== restaurant.phone) {
+        setIsSavingPhone(true);
+        try {
+          await onUpdatePhone(restaurant.id, editedPhone.trim());
+          setIsEditingPhone(false);
+          setRestaurant(prev => ({ ...prev, phone: editedPhone.trim() }));
+        } catch (err) {
+          console.error('Failed to update phone:', err);
+        } finally {
+          setIsSavingPhone(false);
+        }
+      } else {
+        setIsEditingPhone(false);
+      }
+    } else if (e.key === 'Escape') {
+      setEditedPhone(restaurant.phone);
+      setIsEditingPhone(false);
+    }
+  };
 
   const toggleSection = (section: 'oil' | 'accommodations' | 'vegetables' | 'hours') => {
     setExpandedSection(prev => prev === section ? null : section);
@@ -138,7 +169,15 @@ export function RestaurantRow({
   return <div className={`group relative grid grid-cols-1 md:grid-cols-12 gap-4 p-4 border-b border-sky-400/20 transition-colors duration-200 items-start ${isSelected ? 'bg-sky-500/10' : 'hover:bg-[#27272a]'}`}>
       {/* Checkbox */}
       <div className="md:col-span-1 flex items-center justify-center pt-1">
-        <input type="checkbox" checked={isSelected} onChange={() => onToggleSelect(restaurant.id)} className="w-4 h-4 rounded border-zinc-600 bg-zinc-800 text-sky-500 focus:ring-sky-400 focus:ring-offset-zinc-900 cursor-pointer" aria-label={`Select ${restaurant.name}`} />
+        <input 
+          type="checkbox" 
+          checked={isSelected} 
+          onChange={() => onToggleSelect(restaurant.id)} 
+          disabled={!hasValidPhone}
+          className={`w-4 h-4 rounded border-zinc-600 bg-zinc-800 text-sky-500 focus:ring-sky-400 focus:ring-offset-zinc-900 ${hasValidPhone ? 'cursor-pointer' : 'cursor-not-allowed opacity-50'}`} 
+          aria-label={`Select ${restaurant.name}`}
+          title={!hasValidPhone ? 'Phone number required for enrichment' : undefined}
+        />
       </div>
 
       {/* Name Section */}
@@ -154,8 +193,34 @@ export function RestaurantRow({
       {/* Contact Section */}
       <div className="md:col-span-2 flex flex-col space-y-1 text-sm text-zinc-400">
         <div className="flex items-center gap-2">
-          <Phone className="w-3 h-3 text-sky-400/70" />
-          <span>{restaurant.phone}</span>
+          <Phone className={`w-3 h-3 ${hasValidPhone ? 'text-sky-400/70' : 'text-amber-400/70'}`} />
+          {isEditingPhone ? (
+            <input
+              type="text"
+              value={editedPhone}
+              onChange={(e) => setEditedPhone(e.target.value)}
+              onKeyDown={handlePhoneKeyDown}
+              onBlur={() => {
+                setEditedPhone(restaurant.phone);
+                setIsEditingPhone(false);
+              }}
+              disabled={isSavingPhone}
+              autoFocus
+              className="bg-zinc-700 border border-sky-400/50 rounded px-1 py-0.5 text-zinc-100 text-sm w-32 focus:outline-none focus:ring-1 focus:ring-sky-400"
+              placeholder="Enter phone..."
+            />
+          ) : (
+            <span 
+              onClick={() => {
+                setEditedPhone(restaurant.phone === 'N/A' ? '' : restaurant.phone);
+                setIsEditingPhone(true);
+              }}
+              className={`cursor-pointer hover:text-sky-400 transition-colors ${!hasValidPhone ? 'text-amber-400 italic' : ''}`}
+              title="Click to edit phone number"
+            >
+              {restaurant.phone}
+            </span>
+          )}
         </div>
         <div className="flex items-start gap-2">
           <MapPin className="w-3 h-3 text-sky-400/70 mt-0.5 flex-shrink-0" />

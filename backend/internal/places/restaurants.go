@@ -253,6 +253,24 @@ func (rc *RestaurantsClient) BatchEnrichRestaurantDetails(restaurantIds []string
 	return restaurants, nil
 }
 
+func (rc *RestaurantsClient) UpdateRestaurantPhoneNumber(placesId string, phoneNumber string) (Restaurant, error) {
+	var restaurant Restaurant
+	err := rc.dbClient.Db.QueryRow(rc.dbClient.Ctx,
+		`UPDATE public.restaurants 
+		 SET phone_number = $1, updated_at = NOW() 
+		 WHERE places_id = $2
+		 RETURNING places_id, name, address, phone_number, open_hours, nutrition_info, created_at, updated_at, enrichment_status, rating`,
+		phoneNumber, placesId,
+	).Scan(&restaurant.Id, &restaurant.Name, &restaurant.Address, &restaurant.PhoneNumber, &restaurant.OpenHours,
+		&restaurant.NutritionInfo, &restaurant.CreatedAt, &restaurant.UpdatedAt, &restaurant.EnrichmentStatus, &restaurant.Rating)
+	if err != nil {
+		slog.Error("[restaurants.UpdateRestaurantPhoneNumber] Failed to update phone number", "error", err)
+		return Restaurant{}, err
+	}
+	slog.Info("[restaurants.UpdateRestaurantPhoneNumber] Updated phone number", "places_id", placesId, "phone_number", phoneNumber)
+	return restaurant, nil
+}
+
 func (rc *RestaurantsClient) UpdateRestaurantNutritionInfo(eocr EndOfCallReportMessage) error {
 	nutritionInfo := make(map[string]interface{})
 	for _, result := range eocr.Message.Artifact.StructuredOutputs {

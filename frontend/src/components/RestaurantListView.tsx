@@ -60,6 +60,8 @@ export function RestaurantListView() {
   const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // Track whether we're showing API search results (skip local filtering)
+  const [isApiSearchResult, setIsApiSearchResult] = useState(false);
 
   useEffect(() => {
     async function fetchRestaurants() {
@@ -83,15 +85,28 @@ export function RestaurantListView() {
     fetchRestaurants();
   }, []);
 
-  // Local filtering for real-time search as you type
+  // Local filtering for real-time search as you type (only when not showing API search results)
   const filteredData = useMemo(() => {
+    // If we're showing API search results, don't apply local filtering
+    if (isApiSearchResult) {
+      return restaurants;
+    }
     const query = searchQuery.toLowerCase();
     return restaurants.filter(item => 
       item.name.toLowerCase().includes(query) || 
       item.phone.includes(query) || 
       item.address.toLowerCase().includes(query)
     );
-  }, [searchQuery, restaurants]);
+  }, [searchQuery, restaurants, isApiSearchResult]);
+
+  // When user types (not search), reset to local filtering mode
+  const handleQueryChange = (value: string) => {
+    setSearchQuery(value);
+    // If clearing the search or typing, switch back to local filtering mode
+    if (!value.trim() || isApiSearchResult) {
+      setIsApiSearchResult(false);
+    }
+  };
 
   const handleSearch = async () => {
     if (!searchQuery.trim()) {
@@ -99,6 +114,7 @@ export function RestaurantListView() {
       try {
         setLoading(true);
         setError(null);
+        setIsApiSearchResult(false);
         const response = await authFetch(`${API_BASE_URL}/restaurant`);
         if (!response.ok) {
           throw new Error(`Failed to fetch restaurants: ${response.statusText}`);
@@ -128,6 +144,8 @@ export function RestaurantListView() {
       }
       const apiRestaurants: ApiRestaurant[] = await response.json();
       setRestaurants(apiRestaurants.map(transformRestaurant));
+      // Mark that we're showing API search results (skip local filtering)
+      setIsApiSearchResult(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An unexpected error occurred');
     } finally {
@@ -145,11 +163,34 @@ export function RestaurantListView() {
       return newSet;
     });
   };
+
+  const handleUpdatePhone = async (id: string, phoneNumber: string) => {
+    const response = await authFetch(`${API_BASE_URL}/restaurant/${id}`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ phoneNumber }),
+    });
+    if (!response.ok) {
+      throw new Error(`Failed to update phone: ${response.statusText}`);
+    }
+    const updatedRestaurant: ApiRestaurant = await response.json();
+    // Update the restaurants list with the new phone number
+    setRestaurants(prev => 
+      prev.map(r => r.id === id ? transformRestaurant(updatedRestaurant) : r)
+    );
+  };
+
   const handleSelectAll = () => {
-    if (selectedIds.size === filteredData.length) {
+    // Only select restaurants with valid phone numbers
+    const selectableRestaurants = filteredData.filter(r => 
+      r.phone && r.phone !== 'N/A' && r.phone.trim() !== ''
+    );
+    if (selectedIds.size === selectableRestaurants.length && selectableRestaurants.length > 0) {
       setSelectedIds(new Set());
     } else {
-      setSelectedIds(new Set(filteredData.map(r => r.id)));
+      setSelectedIds(new Set(selectableRestaurants.map(r => r.id)));
     }
   };
   const [enriching, setEnriching] = useState(false);
@@ -187,7 +228,9 @@ export function RestaurantListView() {
       setEnriching(false);
     }
   };
-  const allSelected = filteredData.length > 0 && selectedIds.size === filteredData.length;
+  // Only count restaurants with valid phone numbers for the "all selected" check
+  const selectableCount = filteredData.filter(r => r.phone && r.phone !== 'N/A' && r.phone.trim() !== '').length;
+  const allSelected = selectableCount > 0 && selectedIds.size === selectableCount;
   return <div className="min-h-screen bg-zinc-900 text-zinc-100 font-sans selection:bg-sky-400/30 selection:text-sky-200">
       {/* Sticky Header */}
       <header className="sticky top-0 z-10 bg-zinc-900/95 backdrop-blur-sm border-b border-sky-400/30 shadow-lg shadow-black/20">
@@ -209,7 +252,7 @@ export function RestaurantListView() {
               </div>
             </div>
             <div className="w-full md:w-auto">
-              <SearchBar value={searchQuery} onChange={setSearchQuery} onSearch={handleSearch} />
+              <SearchBar value={searchQuery} onChange={handleQueryChange} onSearch={handleSearch} />
             </div>
           </div>
 
@@ -255,7 +298,8 @@ export function RestaurantListView() {
                   key={restaurant.id} 
                   restaurant={restaurant} 
                   isSelected={selectedIds.has(restaurant.id)} 
-                  onToggleSelect={handleToggleSelect} 
+                  onToggleSelect={handleToggleSelect}
+                  onUpdatePhone={handleUpdatePhone}
                 />
               ))}
             </div>

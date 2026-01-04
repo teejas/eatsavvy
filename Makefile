@@ -14,7 +14,7 @@ build-rabbitmq:
 	docker buildx build --platform ${PLATFORMS} -t rmq-delayed-exchange -f infra/docker/DockerfileRabbitMQ .
 
 build-frontend:
-	cd frontend && npm run build
+	cd frontend && VITE_EATSAVVY_API_URL="https://api.eatsavvy.org" npm run build
 
 build: build-api build-worker build-rabbitmq build-frontend
 
@@ -40,7 +40,7 @@ run-rabbitmq: docker-network
 	docker run --detach --name eatsavvy-rabbitmq --network ${DOCKER_NETWORK} -p 5672:5672 -p 15672:15672 rmq-delayed-exchange
 
 run-frontend:
-	cd frontend && npm run dev
+	cd frontend && VITE_EATSAVVY_API_URL="http://localhost:8080" npm run dev
 
 stop-rabbitmq:
 	docker stop eatsavvy-rabbitmq
